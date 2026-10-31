@@ -148,6 +148,20 @@
   .card .why:empty::before { content: attr(data-ph); color: color-mix(in srgb, var(--muted) 68%, transparent); font-style: italic; }
   .card .why:focus { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 2px var(--accent); }
 
+  /* per-card collapse + custom color */
+  .card .caret { flex: none; width: 18px; height: 18px; margin: 0 2px 0 -2px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; padding: 0; transition: transform .12s; }
+  .card .caret:hover { color: var(--fg); background: var(--surface-2); }
+  .card.collapsed .caret { transform: rotate(-90deg); }
+  .card.collapsed { padding-bottom: 10px; }
+  .card.collapsed .why, .card.collapsed .meta, .card.collapsed .worklane { display: none; }
+  .card .colorbtn .cdot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(128,128,128,.4); display: block; }
+  .card .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 2px; }
+  .card .palette .sw { width: 19px; height: 19px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .card .palette .sw.sel { border-color: var(--fg); }
+  .card .palette input[type="color"] { width: 26px; height: 22px; border: 1px solid var(--line-strong); border-radius: 6px; background: none; padding: 0; cursor: pointer; }
+  .card .palette .reset { font: inherit; font-size: 11.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .card .palette .reset:hover { border-color: var(--accent); }
+
   .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .dots { display: inline-flex; gap: 3px; align-items: center; }
   .dots .d { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: transparent; padding: 0; cursor: pointer; }
@@ -219,7 +233,7 @@
   <header class="top">
     <div class="title">
       <h1>Backlog Board</h1>
-      <p>Drag to reorder or move between lanes. Click a name, note, value, effort or status to edit. Hit <b>▶ Work on this</b> to hand a card to Claude.</p>
+      <p>Drag to reorder or move between lanes. Click a name, note, value, effort or status to edit — the <b>▾</b> collapses a card and the swatch recolors it. Hit <b>▶ Work on this</b> to hand a card to Claude.</p>
     </div>
     <div class="legend" aria-hidden="true">
       <span class="dot"><span class="swatch" style="background:var(--urgent)"></span>Urgent</span>
@@ -262,6 +276,8 @@
   var COLS = ["urgent", "important", "nice"];
   var EFFORTS = ["S", "M", "L", "XL"];
   var PRIORITY_LABEL = { urgent: "Urgent", important: "Important", nice: "Nice to have" };
+  var PRIORITY_HEX = { urgent: "#cf4636", important: "#2f6aa8", nice: "#2d8a66" };
+  var COLOR_PRESETS = ["#cf4636", "#d98324", "#e0b015", "#2d8a66", "#2aa198", "#2f6aa8", "#4b45c6", "#8a5cc4", "#c0497e", "#6b7280"];
   var state = { items: [], ready: false, canWrite: true, handoffId: null };
   var db = null;
   var dragId = null;
@@ -320,17 +336,24 @@
   function addItem(col, name) {
     name = name.trim(); if (!name) return;
     var id = "b" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
+    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
     state.items.push(it); render(); writeFull(it);
   }
 
   // ---- card ----
   function makeCard(it) {
     var li = document.createElement("li");
-    li.className = "card"; li.dataset.p = it.priority; li.dataset.id = it.id;
+    li.className = "card" + (it.collapsed ? " collapsed" : ""); li.dataset.p = it.priority; li.dataset.id = it.id;
     li.draggable = true;
+    if (it.color) {
+      li.style.borderLeftColor = it.color;
+      li.style.background = "color-mix(in srgb, " + it.color + " 16%, var(--surface))";
+    }
 
     var row1 = document.createElement("div"); row1.className = "row1";
+    var caret = document.createElement("button"); caret.type = "button"; caret.className = "caret";
+    caret.title = it.collapsed ? "Expand card" : "Collapse card"; caret.textContent = "▾";
+    caret.addEventListener("click", function () { patch(it.id, { collapsed: !it.collapsed }); });
     var name = document.createElement("div");
     name.className = "name"; name.contentEditable = "true"; name.spellcheck = false;
     name.textContent = it.name;
@@ -342,7 +365,7 @@
       if (v !== it.name) { name.textContent = v; patch(it.id, { name: v }); }
     });
     var idtag = document.createElement("span"); idtag.className = "idtag"; idtag.textContent = "#" + it.id;
-    row1.appendChild(name); row1.appendChild(idtag);
+    row1.appendChild(caret); row1.appendChild(name); row1.appendChild(idtag);
 
     // why it matters (editable note)
     var why = document.createElement("div");
@@ -388,13 +411,17 @@
 
     // actions
     var actions = document.createElement("div"); actions.className = "actions";
+    var colorbtn = document.createElement("button"); colorbtn.className = "iconbtn colorbtn"; colorbtn.type = "button"; colorbtn.title = "Card color";
+    var cdot = document.createElement("span"); cdot.className = "cdot"; cdot.style.background = it.color || PRIORITY_HEX[it.priority] || "var(--muted)";
+    colorbtn.appendChild(cdot);
+    colorbtn.addEventListener("click", function () { openPalette(li, it); });
     var done = document.createElement("button");
     done.className = "iconbtn"; done.type = "button"; done.title = "Mark done (archive)"; done.innerHTML = "✓";
     done.addEventListener("click", function () { patch(it.id, { status: "done", finishedAt: today() }); });
     var del = document.createElement("button");
     del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.innerHTML = "✕";
     del.addEventListener("click", function () { askDelete(li, it); });
-    actions.appendChild(done); actions.appendChild(del);
+    actions.appendChild(colorbtn); actions.appendChild(done); actions.appendChild(del);
     meta.appendChild(actions);
 
     // work-on-this lane (hand the card to Claude)
@@ -426,6 +453,27 @@
       clearDropActive(); commitOrder(); render();
     });
     return li;
+  }
+
+  function openPalette(li, it) {
+    var existing = li.querySelector(".palette");
+    if (existing) { existing.remove(); return; }
+    var p = document.createElement("div"); p.className = "palette";
+    COLOR_PRESETS.forEach(function (c) {
+      var s = document.createElement("button"); s.type = "button";
+      s.className = "sw" + (it.color === c ? " sel" : ""); s.style.background = c; s.title = c;
+      s.addEventListener("click", function () { patch(it.id, { color: c }); });
+      p.appendChild(s);
+    });
+    var custom = document.createElement("input"); custom.type = "color"; custom.title = "Custom color";
+    custom.value = it.color || PRIORITY_HEX[it.priority] || "#888888";
+    custom.addEventListener("change", function () { patch(it.id, { color: custom.value }); });
+    p.appendChild(custom);
+    var reset = document.createElement("button"); reset.type = "button"; reset.className = "reset"; reset.textContent = "Default";
+    reset.title = "Use the priority color";
+    reset.addEventListener("click", function () { patch(it.id, { color: null }); });
+    p.appendChild(reset);
+    li.appendChild(p);
   }
 
   function askDelete(li, it) {
@@ -595,6 +643,8 @@
             value: typeof data.value === "number" ? data.value : 3,
             effort: EFFORTS.indexOf(data.effort) >= 0 ? data.effort : "M",
             notes: typeof data.notes === "string" ? data.notes : "",
+            collapsed: data.collapsed === true,
+            color: typeof data.color === "string" ? data.color : null,
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
             addedAt: data.addedAt || "",
