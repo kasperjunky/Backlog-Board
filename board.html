@@ -185,7 +185,8 @@
   .workbtn { font: inherit; font-size: 12px; font-weight: 650; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 8px; padding: 4px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
   .workbtn:hover { background: var(--accent); color: var(--accent-fg); }
   .card.picked { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .pickedbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .pickedbadge { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .pickedbadge .hint { font-weight: 500; color: var(--muted); }
   .pickedbadge .clr { font: inherit; font-size: 11.5px; font-weight: 500; color: var(--muted); background: transparent; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
   .pickedbadge .clr:hover { color: var(--fg); border-color: var(--fg); }
 
@@ -194,6 +195,19 @@
   .pickbar code { font-family: var(--font-body); font-weight: 700; font-size: 12.5px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; }
   .pickbar .clr { margin-left: auto; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 3px 10px; cursor: pointer; }
   .pickbar .clr:hover { border-color: var(--accent); }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
+  .toolbar .search { flex: 1 1 200px; min-width: 150px; font: inherit; font-size: 13.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 7px 11px; }
+  .toolbar .search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .toolbar .filtergroup { display: inline-flex; align-items: center; gap: 5px; }
+  .toolbar .fglabel { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .toolbar .fchip { font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 3px 9px; cursor: pointer; }
+  .toolbar .fchip:hover { border-color: var(--accent); }
+  .toolbar .fchip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .toolbar .clearf { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  .toolbar .clearf:hover { border-color: var(--accent); }
+  .toolbar .fsummary { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .board.filtering .card { cursor: default; }
 
   .adder { padding: 0 10px 11px; }
   .adder input { width: 100%; font: inherit; font-size: 13.5px; border: 1px dashed var(--line-strong); background: transparent; color: var(--fg); border-radius: 9px; padding: 8px 10px; }
@@ -245,6 +259,24 @@
   <div id="banner" class="banner" hidden></div>
   <div id="pickbar" class="pickbar" hidden></div>
 
+  <div class="toolbar" id="toolbar">
+    <input id="searchInput" class="search" type="search" placeholder="Search name or note…" aria-label="Search backlog">
+    <div class="filtergroup" id="effortFilter">
+      <span class="fglabel">Effort</span>
+      <button type="button" class="fchip" data-effort="S">S</button>
+      <button type="button" class="fchip" data-effort="M">M</button>
+      <button type="button" class="fchip" data-effort="L">L</button>
+      <button type="button" class="fchip" data-effort="XL">XL</button>
+    </div>
+    <div class="filtergroup" id="statusFilter">
+      <span class="fglabel">Status</span>
+      <button type="button" class="fchip" data-status="todo">To do</button>
+      <button type="button" class="fchip" data-status="doing">In progress</button>
+    </div>
+    <button type="button" class="clearf" id="clearFilters" hidden>Clear filters</button>
+    <span class="fsummary" id="filterSummary" hidden></span>
+  </div>
+
   <div class="board" id="board">
     <section class="col" data-col="urgent">
       <div class="col-head"><span class="pip"></span><h2>Urgent</h2><span class="count" data-count>0</span></div>
@@ -282,6 +314,7 @@
   var db = null;
   var dragId = null;
   var suppress = false; // pause rebuilds while dragging
+  var filterQ = "", filterEfforts = {}, filterStatuses = {}; // view-only filters
 
   var boardEl = document.getElementById("board");
   var bannerEl = document.getElementById("banner");
@@ -296,6 +329,14 @@
   function banner(msg) {
     if (!msg) { bannerEl.hidden = true; return; }
     bannerEl.innerHTML = msg; bannerEl.hidden = false;
+  }
+
+  function filterActive() { return !!filterQ || Object.keys(filterEfforts).length > 0 || Object.keys(filterStatuses).length > 0; }
+  function matchesFilter(it) {
+    if (filterQ) { var hay = (it.name + " " + (it.notes || "")).toLowerCase(); if (hay.indexOf(filterQ) < 0) return false; }
+    if (Object.keys(filterEfforts).length && !filterEfforts[it.effort]) return false;
+    if (Object.keys(filterStatuses).length && !filterStatuses[it.status]) return false;
+    return true;
   }
 
   // ---- writes (db) ----
@@ -344,7 +385,7 @@
   function makeCard(it) {
     var li = document.createElement("li");
     li.className = "card" + (it.collapsed ? " collapsed" : ""); li.dataset.p = it.priority; li.dataset.id = it.id;
-    li.draggable = true;
+    li.draggable = !filterActive();
     if (it.color) {
       li.style.borderLeftColor = it.color;
       li.style.background = "color-mix(in srgb, " + it.color + " 16%, var(--surface))";
@@ -429,7 +470,9 @@
     if (state.handoffId === it.id) {
       li.classList.add("picked");
       var badge = document.createElement("span"); badge.className = "pickedbadge";
-      badge.appendChild(document.createTextNode("📌 Picked for Claude"));
+      var lead = document.createElement("span"); lead.textContent = "📌 Picked for Claude —";
+      var hint = document.createElement("span"); hint.className = "hint"; hint.textContent = "say “start my pick” in chat";
+      badge.appendChild(lead); badge.appendChild(hint);
       var clr = document.createElement("button"); clr.type = "button"; clr.className = "clr"; clr.textContent = "Clear";
       clr.addEventListener("click", function () { clearHandoff(); });
       badge.appendChild(clr);
@@ -537,21 +580,27 @@
   // ---- render ----
   function render() {
     if (suppress) return;
+    var fActive = filterActive();
+    var totalShown = 0, totalAll = 0;
     COLS.forEach(function (col) {
       var listEl = boardEl.querySelector('[data-list="' + col + '"]');
       listEl.innerHTML = "";
       var items = inCol(col);
-      items.forEach(function (it) { listEl.appendChild(makeCard(it)); });
+      var shown = fActive ? items.filter(matchesFilter) : items;
+      totalAll += items.length; totalShown += shown.length;
+      shown.forEach(function (it) { listEl.appendChild(makeCard(it)); });
       var section = boardEl.querySelector('[data-col="' + col + '"]');
-      section.querySelector("[data-count]").textContent = items.length;
-      if (items.length) section.removeAttribute("data-empty");
+      section.querySelector("[data-count]").textContent = shown.length;
+      if (shown.length) section.removeAttribute("data-empty");
       else section.setAttribute("data-empty", "true");
-      if (!items.length && state.ready) {
+      if (!shown.length && state.ready) {
         var em = document.createElement("li"); em.className = "empty"; em.style.cursor = "default";
-        em.textContent = "Drop a card here";
+        em.textContent = fActive ? "No matches" : "Drop a card here";
         listEl.appendChild(em);
       }
     });
+    var fsum = document.getElementById("filterSummary");
+    if (fsum) { fsum.hidden = !fActive; fsum.textContent = fActive ? ("Showing " + totalShown + " of " + totalAll) : ""; }
     // archive
     var arc = state.items.filter(function (i) { return i.status === "done"; })
       .sort(function (a, b) { return (b.finishedAt || "").localeCompare(a.finishedAt || ""); });
@@ -602,7 +651,7 @@
     if (!it) { pb.hidden = true; return; }
     pb.hidden = false;
     var b = document.createElement("b"); b.textContent = it.name;
-    var code = document.createElement("code"); code.textContent = "start my backlog pick";
+    var code = document.createElement("code"); code.textContent = "start my pick";
     var clr = document.createElement("button"); clr.className = "clr"; clr.type = "button"; clr.textContent = "Clear pick";
     clr.addEventListener("click", function () { clearHandoff(); });
     pb.appendChild(document.createTextNode("📌 "));
@@ -618,6 +667,39 @@
       if (e.key === "Enter") { addItem(inp.dataset.add, inp.value); inp.value = ""; }
     });
   });
+
+  // ---- filter / search toolbar ----
+  function applyFilterUI() {
+    var active = filterActive();
+    var clr = document.getElementById("clearFilters");
+    if (clr) clr.hidden = !active;
+    boardEl.classList.toggle("filtering", active);
+  }
+  (function initToolbar() {
+    var search = document.getElementById("searchInput");
+    if (search) search.addEventListener("input", function () { filterQ = search.value.trim().toLowerCase(); applyFilterUI(); render(); });
+    document.querySelectorAll("#effortFilter .fchip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.dataset.effort;
+        if (filterEfforts[k]) delete filterEfforts[k]; else filterEfforts[k] = true;
+        b.classList.toggle("active"); applyFilterUI(); render();
+      });
+    });
+    document.querySelectorAll("#statusFilter .fchip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.dataset.status;
+        if (filterStatuses[k]) delete filterStatuses[k]; else filterStatuses[k] = true;
+        b.classList.toggle("active"); applyFilterUI(); render();
+      });
+    });
+    var clr = document.getElementById("clearFilters");
+    if (clr) clr.addEventListener("click", function () {
+      filterQ = ""; filterEfforts = {}; filterStatuses = {};
+      if (search) search.value = "";
+      document.querySelectorAll(".toolbar .fchip.active").forEach(function (b) { b.classList.remove("active"); });
+      applyFilterUI(); render();
+    });
+  })();
 
   render(); // first frame (empty skeleton)
 
