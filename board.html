@@ -1,0 +1,622 @@
+<title>Backlog Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: a fixed header over three priority lanes that scroll as one board,
+     with a collapsible archive shelf below. Cards are priority-tinted. */
+  :root {
+    --bg: #f6f4ee;
+    --surface: #fffefb;
+    --surface-2: #f0ede4;
+    --fg: #211d17;
+    --muted: #8a8173;
+    --line: #e4ded2;
+    --line-strong: #d4ccbc;
+    --accent: #4b45c6;
+    --accent-fg: #ffffff;
+
+    --urgent: #cf4636;
+    --urgent-soft: #fbe9e5;
+    --urgent-line: #f0c3b9;
+    --important: #2f6aa8;
+    --important-soft: #e6eef7;
+    --important-line: #bcd2ea;
+    --nice: #2d8a66;
+    --nice-soft: #e2f1ea;
+    --nice-line: #b9ddcb;
+
+    --shadow: 0 1px 2px rgba(33,29,23,.06), 0 4px 14px rgba(33,29,23,.07);
+    --radius: 14px;
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "Hanken Grotesk", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15120d;
+      --surface: #201c16;
+      --surface-2: #2a251d;
+      --fg: #f1ece2;
+      --muted: #a79d8c;
+      --line: #322c23;
+      --line-strong: #433c30;
+      --accent: #938eef;
+      --accent-fg: #15120d;
+      --urgent: #ef8a7b; --urgent-soft: #35211d; --urgent-line: #5a332b;
+      --important: #83b2e6; --important-soft: #182533; --important-line: #2b4059;
+      --nice: #72c7a1; --nice-soft: #15271f; --nice-line: #27483a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15120d;
+    --surface: #201c16;
+    --surface-2: #2a251d;
+    --fg: #f1ece2;
+    --muted: #a79d8c;
+    --line: #322c23;
+    --line-strong: #433c30;
+    --accent: #938eef;
+    --accent-fg: #15120d;
+    --urgent: #ef8a7b; --urgent-soft: #35211d; --urgent-line: #5a332b;
+    --important: #83b2e6; --important-soft: #182533; --important-line: #2b4059;
+    --nice: #72c7a1; --nice-soft: #15271f; --nice-line: #27483a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+    padding-block: 18px 40px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .title { display: flex; flex-direction: column; gap: 2px; }
+  .title h1 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: clamp(28px, 5vw, 40px);
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .title p { margin: 0; color: var(--muted); font-size: 14px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .legend .dot { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 11px; height: 11px; border-radius: 3px; }
+
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .board { grid-template-columns: 1fr; } }
+
+  .col { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; min-width: 0; }
+  .col-head { display: flex; align-items: center; gap: 9px; padding: 13px 14px 11px; border-bottom: 1px solid var(--line); }
+  .col-head .pip { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .col-head h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+  .col-head .count { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+
+  .col[data-col="urgent"] .pip { background: var(--urgent); }
+  .col[data-col="important"] .pip { background: var(--important); }
+  .col[data-col="nice"] .pip { background: var(--nice); }
+
+  .list { list-style: none; margin: 0; padding: 10px; display: flex; flex-direction: column; gap: 10px; min-height: 70px; border-radius: 0 0 var(--radius) var(--radius); transition: background .12s, min-height .12s; }
+  .list.drop-active { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+
+  /* Empty lanes collapse to a thin strip so they don't push real items down. */
+  .col[data-empty] .col-head { border-bottom-color: transparent; }
+  .col[data-empty] .list { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+  .col[data-empty] .list .empty { display: none; }
+  .col[data-empty] .adder { padding-top: 4px; }
+  /* …but expand into a real drop target while a card is being dragged. */
+  .board.dragging .col[data-empty] .list { min-height: 52px; padding-top: 10px; padding-bottom: 10px; }
+  .board.dragging .col[data-empty] .list .empty { display: block; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--line-strong);
+    border-radius: 11px;
+    padding: 11px 11px 9px;
+    box-shadow: var(--shadow);
+    cursor: grab;
+    display: flex; flex-direction: column; gap: 9px;
+    min-width: 0;
+  }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: .45; }
+  .card.ghost { outline: 2px dashed var(--accent); outline-offset: 2px; opacity: .6; }
+  .card[data-p="urgent"] { border-left-color: var(--urgent); background: color-mix(in srgb, var(--urgent-soft) 55%, var(--surface)); }
+  .card[data-p="important"] { border-left-color: var(--important); background: color-mix(in srgb, var(--important-soft) 55%, var(--surface)); }
+  .card[data-p="nice"] { border-left-color: var(--nice); background: color-mix(in srgb, var(--nice-soft) 55%, var(--surface)); }
+
+  .card .row1 { display: flex; align-items: flex-start; gap: 8px; }
+  .card .name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 550; outline: none; border-radius: 6px; padding: 1px 3px; margin: -1px -3px; word-break: break-word; }
+  .card .name:focus { background: var(--bg); box-shadow: 0 0 0 2px var(--accent); }
+  .card .idtag { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; padding-top: 2px; }
+
+  .card .why { font-size: 12.5px; color: var(--muted); line-height: 1.4; outline: none; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; word-break: break-word; min-height: 17px; cursor: text; }
+  .card .why:empty::before { content: attr(data-ph); color: color-mix(in srgb, var(--muted) 68%, transparent); font-style: italic; }
+  .card .why:focus { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 2px var(--accent); }
+
+  .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dots { display: inline-flex; gap: 3px; align-items: center; }
+  .dots .d { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: transparent; padding: 0; cursor: pointer; }
+  .dots .d.on { background: var(--fg); border-color: var(--fg); }
+  .dots .lbl { font-size: 11px; color: var(--muted); margin-right: 2px; }
+
+  .chip { font-size: 11.5px; font-weight: 650; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 2px 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.effort { min-width: 30px; text-align: center; }
+  .chip.status[data-s="doing"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+  .card .actions { margin-left: auto; display: flex; gap: 4px; }
+  .iconbtn { border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 7px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; line-height: 1; }
+  .iconbtn:hover { color: var(--fg); background: var(--surface-2); border-color: var(--line); }
+  .iconbtn.danger:hover { color: var(--urgent); border-color: var(--urgent-line); }
+  .confirm { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .confirm button { font: inherit; font-size: 12px; border-radius: 6px; padding: 2px 8px; cursor: pointer; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); }
+  .confirm button.yes { background: var(--urgent); border-color: var(--urgent); color: #fff; }
+
+  .worklane { display: flex; align-items: center; gap: 8px; margin-top: 1px; }
+  .workbtn { font: inherit; font-size: 12px; font-weight: 650; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 8px; padding: 4px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .workbtn:hover { background: var(--accent); color: var(--accent-fg); }
+  .card.picked { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .pickedbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .pickedbadge .clr { font: inherit; font-size: 11.5px; font-weight: 500; color: var(--muted); background: transparent; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .pickedbadge .clr:hover { color: var(--fg); border-color: var(--fg); }
+
+  .pickbar { font-size: 13px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line)); border-radius: 10px; padding: 10px 13px; margin-bottom: 16px; display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; }
+  .pickbar b { font-weight: 700; }
+  .pickbar code { font-family: var(--font-body); font-weight: 700; font-size: 12.5px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; }
+  .pickbar .clr { margin-left: auto; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 3px 10px; cursor: pointer; }
+  .pickbar .clr:hover { border-color: var(--accent); }
+
+  .adder { padding: 0 10px 11px; }
+  .adder input { width: 100%; font: inherit; font-size: 13.5px; border: 1px dashed var(--line-strong); background: transparent; color: var(--fg); border-radius: 9px; padding: 8px 10px; }
+  .adder input:focus { outline: none; border-style: solid; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .adder input::placeholder { color: var(--muted); }
+
+  .archive { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .archive summary { cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
+  .archive summary::-webkit-details-marker { display: none; }
+  .archive summary .caret { transition: transform .15s; }
+  .archive[open] summary .caret { transform: rotate(90deg); }
+  .arc-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .arc-item { display: flex; flex-direction: column; gap: 7px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 10px; padding: 10px 11px; font-size: 13px; min-width: 0; }
+  .arc-item[data-p="urgent"] { border-left-color: var(--urgent); }
+  .arc-item[data-p="important"] { border-left-color: var(--important); }
+  .arc-item[data-p="nice"] { border-left-color: var(--nice); }
+  .arc-item .arc-top { display: flex; align-items: flex-start; gap: 8px; }
+  .arc-item .nm { flex: 1; min-width: 0; font-weight: 550; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 55%, transparent); color: var(--muted); word-break: break-word; }
+  .arc-item .arc-actions { display: flex; gap: 4px; flex: none; }
+  .arc-item .arc-why { font-size: 12px; color: var(--muted); line-height: 1.4; word-break: break-word; }
+  .arc-item .arc-meta { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+  .arc-item .arc-meta .tag { display: inline-flex; align-items: center; gap: 5px; }
+  .arc-item .arc-meta .tagpip { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .arc-item .arc-meta .ev { font-weight: 650; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+
+  .banner { font-size: 13px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px; margin-bottom: 16px; }
+  .banner b { color: var(--fg); font-weight: 650; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 14px 8px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1>Backlog Board</h1>
+      <p>Drag to reorder or move between lanes. Click a name, note, value, effort or status to edit. Hit <b>▶ Work on this</b> to hand a card to Claude.</p>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span class="dot"><span class="swatch" style="background:var(--urgent)"></span>Urgent</span>
+      <span class="dot"><span class="swatch" style="background:var(--important)"></span>Important</span>
+      <span class="dot"><span class="swatch" style="background:var(--nice)"></span>Nice to have</span>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+  <div id="pickbar" class="pickbar" hidden></div>
+
+  <div class="board" id="board">
+    <section class="col" data-col="urgent">
+      <div class="col-head"><span class="pip"></span><h2>Urgent</h2><span class="count" data-count>0</span></div>
+      <ul class="list" data-list="urgent" aria-label="Urgent"></ul>
+      <div class="adder"><input data-add="urgent" placeholder="+ Add to Urgent" maxlength="120"></div>
+    </section>
+    <section class="col" data-col="important">
+      <div class="col-head"><span class="pip"></span><h2>Important</h2><span class="count" data-count>0</span></div>
+      <ul class="list" data-list="important" aria-label="Important"></ul>
+      <div class="adder"><input data-add="important" placeholder="+ Add to Important" maxlength="120"></div>
+    </section>
+    <section class="col" data-col="nice">
+      <div class="col-head"><span class="pip"></span><h2>Nice to have</h2><span class="count" data-count>0</span></div>
+      <ul class="list" data-list="nice" aria-label="Nice to have"></ul>
+      <div class="adder"><input data-add="nice" placeholder="+ Add to Nice to have" maxlength="120"></div>
+    </section>
+  </div>
+
+  <details class="archive" id="archive">
+    <summary><span class="caret">▸</span> Archive <span class="count" id="arcCount" style="margin-left:0">0</span></summary>
+    <ul class="arc-list" id="arcList"></ul>
+    <div class="empty" id="arcEmpty">Nothing archived yet. Mark a card done to move it here.</div>
+  </details>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var COLS = ["urgent", "important", "nice"];
+  var EFFORTS = ["S", "M", "L", "XL"];
+  var PRIORITY_LABEL = { urgent: "Urgent", important: "Important", nice: "Nice to have" };
+  var state = { items: [], ready: false, canWrite: true, handoffId: null };
+  var db = null;
+  var dragId = null;
+  var suppress = false; // pause rebuilds while dragging
+
+  var boardEl = document.getElementById("board");
+  var bannerEl = document.getElementById("banner");
+
+  function today() { return new Date().toISOString().slice(0, 10); }
+  function esc(s) { return String(s == null ? "" : s); }
+  function byId(id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return state.items[i]; return null; }
+  function active() { return state.items.filter(function (i) { return i.status !== "done"; }); }
+  function inCol(c) { return active().filter(function (i) { return i.priority === c; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
+  function maxOrder(c) { var m = 0; inCol(c).forEach(function (i) { if ((i.order || 0) > m) m = i.order || 0; }); return m; }
+
+  function banner(msg) {
+    if (!msg) { bannerEl.hidden = true; return; }
+    bannerEl.innerHTML = msg; bannerEl.hidden = false;
+  }
+
+  // ---- writes (db) ----
+  function patch(id, data) {
+    var it = byId(id); if (it) for (var k in data) it[k] = data[k];
+    render();
+    if (!db) return;
+    db.doc("items/" + id).update(data).catch(function (e) { onWriteErr(e); });
+  }
+  function writeFull(it) {
+    if (!db) return;
+    db.doc("items/" + it.id).set(it).catch(function (e) { onWriteErr(e); });
+  }
+  function removeItem(id) {
+    state.items = state.items.filter(function (i) { return i.id !== id; });
+    render();
+    if (db) db.doc("items/" + id).delete().catch(function (e) { onWriteErr(e); });
+  }
+  function onWriteErr(e) {
+    if (e && e.code === "invalid_argument") { state.canWrite = false; banner("This board is read-only for you — changes won’t be saved."); }
+  }
+
+  // ---- handoff: pick an item for Claude to start on ----
+  function writeHandoff(it) {
+    state.handoffId = it.id; render();
+    if (!db || !state.canWrite) return;
+    db.doc("handoff/current").set({
+      itemId: it.id, name: it.name, notes: it.notes || "",
+      priority: it.priority, value: it.value, effort: it.effort,
+      requestedAt: new Date().toISOString()
+    }).catch(function (e) { onWriteErr(e); });
+  }
+  function clearHandoff() {
+    state.handoffId = null; render();
+    if (db) db.doc("handoff/current").delete().catch(function () {});
+  }
+
+  function addItem(col, name) {
+    name = name.trim(); if (!name) return;
+    var id = "b" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
+    state.items.push(it); render(); writeFull(it);
+  }
+
+  // ---- card ----
+  function makeCard(it) {
+    var li = document.createElement("li");
+    li.className = "card"; li.dataset.p = it.priority; li.dataset.id = it.id;
+    li.draggable = true;
+
+    var row1 = document.createElement("div"); row1.className = "row1";
+    var name = document.createElement("div");
+    name.className = "name"; name.contentEditable = "true"; name.spellcheck = false;
+    name.textContent = it.name;
+    name.addEventListener("focus", function () { name.dataset.orig = name.textContent; });
+    name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); name.blur(); } });
+    name.addEventListener("blur", function () {
+      var v = name.textContent.replace(/\s+/g, " ").trim();
+      if (!v) { name.textContent = name.dataset.orig || it.name; return; }
+      if (v !== it.name) { name.textContent = v; patch(it.id, { name: v }); }
+    });
+    var idtag = document.createElement("span"); idtag.className = "idtag"; idtag.textContent = "#" + it.id;
+    row1.appendChild(name); row1.appendChild(idtag);
+
+    // why it matters (editable note)
+    var why = document.createElement("div");
+    why.className = "why"; why.contentEditable = "true"; why.spellcheck = false;
+    why.setAttribute("data-ph", "Why it matters — click to add a note…");
+    why.textContent = it.notes || "";
+    why.addEventListener("focus", function () { why.dataset.orig = why.textContent; });
+    why.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); why.blur(); } });
+    why.addEventListener("blur", function () {
+      var v = why.textContent.replace(/\s+/g, " ").trim();
+      why.textContent = v;
+      if (v !== (it.notes || "")) patch(it.id, { notes: v });
+    });
+
+    var meta = document.createElement("div"); meta.className = "meta";
+
+    // value dots
+    var dots = document.createElement("span"); dots.className = "dots"; dots.title = "Value";
+    var lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "Value"; dots.appendChild(lbl);
+    for (var v = 1; v <= 5; v++) (function (vv) {
+      var b = document.createElement("button");
+      b.className = "d" + (vv <= (it.value || 0) ? " on" : "");
+      b.type = "button"; b.setAttribute("aria-label", "Value " + vv);
+      b.addEventListener("click", function () { patch(it.id, { value: vv === it.value ? vv - 1 : vv }); });
+      dots.appendChild(b);
+    })(v);
+    meta.appendChild(dots);
+
+    // effort chip
+    var eff = document.createElement("button");
+    eff.className = "chip effort"; eff.type = "button"; eff.title = "Effort (click to cycle)";
+    eff.textContent = it.effort || "M";
+    eff.addEventListener("click", function () { var n = EFFORTS[(EFFORTS.indexOf(it.effort) + 1) % EFFORTS.length]; patch(it.id, { effort: n }); });
+    meta.appendChild(eff);
+
+    // status chip
+    var st = document.createElement("button");
+    st.className = "chip status"; st.type = "button"; st.dataset.s = it.status;
+    st.textContent = it.status === "doing" ? "In progress" : "To do";
+    st.title = "Status (click to toggle)";
+    st.addEventListener("click", function () { patch(it.id, { status: it.status === "doing" ? "todo" : "doing" }); });
+    meta.appendChild(st);
+
+    // actions
+    var actions = document.createElement("div"); actions.className = "actions";
+    var done = document.createElement("button");
+    done.className = "iconbtn"; done.type = "button"; done.title = "Mark done (archive)"; done.innerHTML = "✓";
+    done.addEventListener("click", function () { patch(it.id, { status: "done", finishedAt: today() }); });
+    var del = document.createElement("button");
+    del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.innerHTML = "✕";
+    del.addEventListener("click", function () { askDelete(li, it); });
+    actions.appendChild(done); actions.appendChild(del);
+    meta.appendChild(actions);
+
+    // work-on-this lane (hand the card to Claude)
+    var worklane = document.createElement("div"); worklane.className = "worklane";
+    if (state.handoffId === it.id) {
+      li.classList.add("picked");
+      var badge = document.createElement("span"); badge.className = "pickedbadge";
+      badge.appendChild(document.createTextNode("📌 Picked for Claude"));
+      var clr = document.createElement("button"); clr.type = "button"; clr.className = "clr"; clr.textContent = "Clear";
+      clr.addEventListener("click", function () { clearHandoff(); });
+      badge.appendChild(clr);
+      worklane.appendChild(badge);
+    } else {
+      var work = document.createElement("button"); work.type = "button"; work.className = "workbtn";
+      work.title = "Pick this for Claude to start working on";
+      work.appendChild(document.createTextNode("▶ Work on this"));
+      work.addEventListener("click", function () { writeHandoff(it); });
+      worklane.appendChild(work);
+    }
+
+    li.appendChild(row1); li.appendChild(why); li.appendChild(meta); li.appendChild(worklane);
+
+    li.addEventListener("dragstart", function (e) {
+      dragId = it.id; suppress = true; li.classList.add("dragging"); boardEl.classList.add("dragging");
+      try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", it.id); } catch (x) {}
+    });
+    li.addEventListener("dragend", function () {
+      li.classList.remove("dragging"); boardEl.classList.remove("dragging"); dragId = null; suppress = false;
+      clearDropActive(); commitOrder(); render();
+    });
+    return li;
+  }
+
+  function askDelete(li, it) {
+    var meta = li.querySelector(".meta");
+    if (li.querySelector(".confirm")) return;
+    var c = document.createElement("div"); c.className = "confirm";
+    c.innerHTML = "<span>Delete?</span>";
+    var yes = document.createElement("button"); yes.className = "yes"; yes.textContent = "Delete";
+    var no = document.createElement("button"); no.textContent = "Keep";
+    yes.addEventListener("click", function () { removeItem(it.id); });
+    no.addEventListener("click", function () { c.remove(); meta.style.visibility = ""; });
+    c.appendChild(yes); c.appendChild(no);
+    meta.style.visibility = "hidden";
+    li.appendChild(c);
+  }
+
+  // ---- drag targets ----
+  function afterElement(listEl, y) {
+    var cards = Array.prototype.slice.call(listEl.querySelectorAll(".card:not(.dragging)"));
+    var closest = { off: -Infinity, el: null };
+    cards.forEach(function (c) {
+      var box = c.getBoundingClientRect();
+      var off = y - box.top - box.height / 2;
+      if (off < 0 && off > closest.off) closest = { off: off, el: c };
+    });
+    return closest.el;
+  }
+  function clearDropActive() { document.querySelectorAll(".list.drop-active").forEach(function (l) { l.classList.remove("drop-active"); }); }
+
+  COLS.forEach(function (col) {
+    var listEl = boardEl.querySelector('[data-list="' + col + '"]');
+    listEl.addEventListener("dragover", function (e) {
+      if (!dragId) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = "move"; } catch (x) {}
+      clearDropActive(); listEl.classList.add("drop-active");
+      var dragEl = document.querySelector('.card[data-id="' + dragId + '"]');
+      if (!dragEl) return;
+      var after = afterElement(listEl, e.clientY);
+      if (after == null) listEl.appendChild(dragEl);
+      else listEl.insertBefore(dragEl, after);
+    });
+  });
+  boardEl.addEventListener("drop", function (e) { if (dragId) e.preventDefault(); clearDropActive(); });
+
+  // read the DOM arrangement back into the model + persist changed docs
+  function commitOrder() {
+    COLS.forEach(function (col) {
+      var listEl = boardEl.querySelector('[data-list="' + col + '"]');
+      var ids = Array.prototype.slice.call(listEl.querySelectorAll(".card")).map(function (c) { return c.dataset.id; });
+      ids.forEach(function (id, idx) {
+        var it = byId(id); if (!it) return;
+        var changed = false;
+        if (it.priority !== col) { it.priority = col; changed = true; }
+        if (it.order !== idx + 1) { it.order = idx + 1; changed = true; }
+        if (changed && db && state.canWrite) db.doc("items/" + id).update({ priority: col, order: idx + 1 }).catch(onWriteErr);
+      });
+    });
+  }
+
+  // ---- render ----
+  function render() {
+    if (suppress) return;
+    COLS.forEach(function (col) {
+      var listEl = boardEl.querySelector('[data-list="' + col + '"]');
+      listEl.innerHTML = "";
+      var items = inCol(col);
+      items.forEach(function (it) { listEl.appendChild(makeCard(it)); });
+      var section = boardEl.querySelector('[data-col="' + col + '"]');
+      section.querySelector("[data-count]").textContent = items.length;
+      if (items.length) section.removeAttribute("data-empty");
+      else section.setAttribute("data-empty", "true");
+      if (!items.length && state.ready) {
+        var em = document.createElement("li"); em.className = "empty"; em.style.cursor = "default";
+        em.textContent = "Drop a card here";
+        listEl.appendChild(em);
+      }
+    });
+    // archive
+    var arc = state.items.filter(function (i) { return i.status === "done"; })
+      .sort(function (a, b) { return (b.finishedAt || "").localeCompare(a.finishedAt || ""); });
+    var arcList = document.getElementById("arcList");
+    var arcEmpty = document.getElementById("arcEmpty");
+    document.getElementById("arcCount").textContent = arc.length;
+    arcList.innerHTML = "";
+    arcEmpty.hidden = arc.length > 0;
+    arc.forEach(function (it) {
+      var li = document.createElement("li"); li.className = "arc-item"; li.dataset.p = it.priority;
+
+      var top = document.createElement("div"); top.className = "arc-top";
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.name;
+      var acts = document.createElement("div"); acts.className = "arc-actions";
+      var res = document.createElement("button"); res.className = "iconbtn"; res.type = "button"; res.title = "Restore to board"; res.innerHTML = "↺";
+      res.addEventListener("click", function () { patch(it.id, { status: "todo", finishedAt: null, order: maxOrder(it.priority) + 1 }); });
+      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.innerHTML = "✕";
+      del.addEventListener("click", function () { removeItem(it.id); });
+      acts.appendChild(res); acts.appendChild(del);
+      top.appendChild(nm); top.appendChild(acts);
+      li.appendChild(top);
+
+      if (it.notes) {
+        var why = document.createElement("div"); why.className = "arc-why"; why.textContent = it.notes;
+        li.appendChild(why);
+      }
+
+      var m = document.createElement("div"); m.className = "arc-meta";
+      var pr = document.createElement("span"); pr.className = "tag";
+      var pip = document.createElement("span"); pip.className = "tagpip"; pip.style.background = "var(--" + it.priority + ")";
+      var prl = document.createElement("span"); prl.textContent = PRIORITY_LABEL[it.priority] || it.priority;
+      pr.appendChild(pip); pr.appendChild(prl); m.appendChild(pr);
+      var val = document.createElement("span"); val.className = "tag"; val.textContent = "Value " + (it.value || 0) + "/5"; m.appendChild(val);
+      var ef = document.createElement("span"); ef.className = "tag"; ef.appendChild(document.createTextNode("Effort "));
+      var efv = document.createElement("span"); efv.className = "ev"; efv.textContent = it.effort || "M"; ef.appendChild(efv); m.appendChild(ef);
+      if (it.finishedAt) { var fin = document.createElement("span"); fin.className = "tag"; fin.textContent = "Done " + it.finishedAt; m.appendChild(fin); }
+      li.appendChild(m);
+
+      arcList.appendChild(li);
+    });
+    renderPickbar();
+  }
+
+  function renderPickbar() {
+    var pb = document.getElementById("pickbar");
+    var it = state.handoffId ? byId(state.handoffId) : null;
+    pb.innerHTML = "";
+    if (!it) { pb.hidden = true; return; }
+    pb.hidden = false;
+    var b = document.createElement("b"); b.textContent = it.name;
+    var code = document.createElement("code"); code.textContent = "start my backlog pick";
+    var clr = document.createElement("button"); clr.className = "clr"; clr.type = "button"; clr.textContent = "Clear pick";
+    clr.addEventListener("click", function () { clearHandoff(); });
+    pb.appendChild(document.createTextNode("📌 "));
+    pb.appendChild(b);
+    pb.appendChild(document.createTextNode(" is picked for Claude — in chat, say "));
+    pb.appendChild(code);
+    pb.appendChild(clr);
+  }
+
+  // adders
+  document.querySelectorAll("[data-add]").forEach(function (inp) {
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { addItem(inp.dataset.add, inp.value); inp.value = ""; }
+    });
+  });
+
+  render(); // first frame (empty skeleton)
+
+  // ---- db wiring ----
+  function start() {
+    if (!window.claude || !window.claude.use) { state.ready = true; render(); return; }
+    var loadTimer = setTimeout(function () {
+      if (!state.ready) banner("Still connecting to your saved backlog… if this stays, reopen from chat with <b>show backlog</b>.");
+    }, 10000);
+    window.claude.use("db").then(function (d) {
+      if (!d) { clearTimeout(loadTimer); state.ready = true; banner("Sign in to claude.ai to load and save this board."); render(); return; }
+      db = d;
+      db.collection("items").onSnapshot(function (snap) {
+        clearTimeout(loadTimer);
+        if (suppress) return; // don't clobber an in-progress drag
+        var items = [];
+        snap.docs.forEach(function (doc) {
+          var data = doc.data() || {};
+          items.push({
+            id: doc.id,
+            name: data.name || "(untitled)",
+            priority: COLS.indexOf(data.priority) >= 0 ? data.priority : "nice",
+            value: typeof data.value === "number" ? data.value : 3,
+            effort: EFFORTS.indexOf(data.effort) >= 0 ? data.effort : "M",
+            notes: typeof data.notes === "string" ? data.notes : "",
+            status: data.status === "doing" || data.status === "done" ? data.status : "todo",
+            order: typeof data.order === "number" ? data.order : 0,
+            addedAt: data.addedAt || "",
+            finishedAt: data.finishedAt || null
+          });
+        });
+        state.items = items; state.ready = true;
+        if (!bannerEl.hidden && snap.metadata && !snap.metadata.fromCache) banner("");
+        render();
+      }, function (err) {
+        clearTimeout(loadTimer); state.ready = true;
+        if (err && err.code === "revoked") banner("Your access to this board changed. Reopen it from chat.");
+        render();
+      });
+      // which item (if any) is currently picked for Claude
+      db.doc("handoff/current").onSnapshot(function (doc) {
+        var d = doc && doc.data ? doc.data() : null;
+        state.handoffId = d && d.itemId ? d.itemId : null;
+        if (!suppress) render();
+      }, function () {});
+    });
+  }
+  start();
+})();
+</script>

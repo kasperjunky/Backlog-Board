@@ -1,6 +1,6 @@
 {
   "name": "backlog",
-  "version": "0.1.0",
-  "description": "A per-project backlog pane: capture, prioritize, reorder and archive tasks beside the chat.",
+  "version": "0.2.0",
+  "description": "A private, per-project backlog: capture tasks by talking, organize them on a drag-and-drop Kanban board.",
   "author": { "name": "kasperjunky" }
 }

@@ -6,7 +6,8 @@ Kanban board of everything you've saved for that project.
 
 - **Capture by talking.** Say *"save to backlog: X"* (or just defer something — "later",
   "let's do that another time") and it's filed with a priority, value, effort, and an
-  optional note on why it matters. Near-duplicates are skipped.
+  optional note on why it matters, and it syncs onto the board right away. Near-duplicates
+  are skipped.
 - **A real board, not a list.** "Show backlog" opens a Kanban board with three priority
   lanes (Urgent / Important / Nice to have) plus an Archive. Drag cards to reorder or
   re-prioritize, click to edit the name, note, value, effort, or status, and mark cards
@@ -42,9 +43,9 @@ In the desktop app (where `/plugin` doesn't run): click **+** next to the prompt
 
 The plugin is a hooks module. On session start it registers an `add` tool (how captures
 are filed) and a `/backlog` command, and it tells Claude where your private backlog file
-lives and how to drain new captures onto your board. The board itself is a claude.ai
-Artifact with a small shared database; the first time you say "show backlog" in a project,
-Claude builds that board for you and remembers its link.
+lives and how to sync captures onto your board. The board UI ships with the plugin
+(`board.html`); the first time you say "show backlog" in a project, Claude publishes it as
+a private claude.ai Artifact with a small shared database and remembers its link.
 
 ## Development
 

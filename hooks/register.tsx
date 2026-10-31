@@ -9,6 +9,7 @@ import type { BacklogFile, Effort, InboxItem, Priority } from '../types'
 // $ can only be spelled $.noun.method(...) at a call site, so every file read
 // and write is inlined in the hook that needs it; the helpers below are pure.
 let filePath = ''
+let boardTemplate = ''
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -17,6 +18,9 @@ export const register: Register = on => {
     const home = (up ?? hm ?? '').replace(/\\/g, '/')
     const key = (e.cwd ?? 'unknown').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     filePath = home + '/.claude/backlogs/' + key + '.json'
+    let root = ''
+    try { root = $.plugin.root } catch { root = '' }
+    boardTemplate = (root + '/board.html').replace(/\\/g, '/')
 
     // Create this project's backlog file the first time we see it.
     if (!(await $.fs.exists(filePath))) {
@@ -66,9 +70,16 @@ export const register: Register = on => {
         'CAPTURE: when the user says "later", "save to backlog", or clearly defers ' +
         'a task, call mcp__backlog__add with { name, priority (urgent|important|nice), ' +
         'value (1-5), effort (S|M|L|XL), notes }; infer fields from context and put ' +
-        'any reason the user gave for the task into notes; duplicates are skipped. Do ' +
-        'not capture the task currently being worked on, and do not mention the ' +
-        'backlog unless the user brings it up or an item was added.\n' +
+        'any reason the user gave for the task into notes; duplicates are skipped.\n' +
+        'AUTO-SYNC: right after a successful add (the tool replies "Added #…"), ' +
+        'immediately sync the new item to the board — do exactly the SHOW / OPEN ' +
+        'drain described below (write each inbox item into the board’s `items` ' +
+        'collection, set inbox to [], append the drained normalized names to `known`, ' +
+        'write the file back) but do NOT open the board; just confirm the item was ' +
+        'added. If boardUrl is null, skip the sync and leave the item in inbox for the ' +
+        'next "show backlog" (do not build a board just for a capture). Do not capture ' +
+        'the task currently being worked on, and do not mention the backlog unless the ' +
+        'user brings it up or an item was added.\n' +
         'SHOW / OPEN: when the user asks to show, open or see the backlog or board, ' +
         'read that JSON file — it is { nextId, known, inbox, boardUrl }. If boardUrl ' +
         'is set, drain every item in `inbox` into that artifact’s `items` ' +
@@ -77,8 +88,11 @@ export const register: Register = on => {
         'status:"todo", order = the item id, addedAt, finishedAt:null), then set ' +
         'inbox to [], append each drained item’s normalized name (lowercased, ' +
         'non-alphanumerics removed) to `known`, write the file back, and open the ' +
-        'board artifact. If boardUrl is null, build the Kanban board artifact first, ' +
-        'save its URL into the file, then drain as above.\n' +
+        'board artifact. If boardUrl is null, create the board from the template ' +
+        'that ships with this plugin: publish the HTML file at ' + boardTemplate +
+        ' as a new Artifact with capabilities {db:{}} (that file IS the board UI — ' +
+        'publish it as-is, do not rewrite it), save the new artifact URL into ' +
+        'boardUrl, then drain as above.\n' +
         'WORK ON A PICK: the board has a "▶ Work on this" button that writes a ' +
         'document `handoff/current` = { itemId, name, notes, priority, value, effort } ' +
         'to the board’s artifact database. When the user says "start my backlog pick", ' +
@@ -128,7 +142,8 @@ export const register: Register = on => {
       result:
         'Added #' + item.id + ' "' + item.name + '" (' + item.priority +
         ', value ' + item.value + ', effort ' + item.effort + ') to your backlog. ' +
-        'Say "show backlog" to open the board.',
+        'Now sync it to the board (auto-sync) without opening the board; no ' +
+        '"show backlog" needed.',
     }
   })
 
