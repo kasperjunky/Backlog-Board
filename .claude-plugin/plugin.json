@@ -1,0 +1,6 @@
+{
+  "name": "backlog",
+  "version": "0.1.0",
+  "description": "A per-project backlog pane: capture, prioritize, reorder and archive tasks beside the chat.",
+  "author": { "name": "kasperjunky" }
+}

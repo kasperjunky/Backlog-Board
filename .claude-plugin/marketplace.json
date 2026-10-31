@@ -1,0 +1,6 @@
+{
+  "name": "backlog-board",
+  "description": "A private, per-project Kanban backlog for Claude Code — capture by talking, organize on a drag-and-drop board.",
+  "owner": { "name": "kasperjunky" },
+  "plugins": [{ "name": "backlog", "source": "./" }]
+}
