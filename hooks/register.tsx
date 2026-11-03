@@ -90,7 +90,8 @@ export const register: Register = on => {
         'non-alphanumerics removed) to `known`, write the file back, and open the ' +
         'board artifact. If boardUrl is null, create the board from the template ' +
         'that ships with this plugin: publish the HTML file at ' + boardTemplate +
-        ' as a new Artifact with capabilities {db:{}} (that file IS the board UI — ' +
+        ' as a new Artifact with capabilities {db:{}, downloads:true} (that file IS ' +
+        'the board UI — ' +
         'publish it as-is, do not rewrite it), save the new artifact URL into ' +
         'boardUrl, then drain as above.\n' +
         'WORK ON A PICK: the board has a "▶ Work on this" button that writes a ' +
@@ -99,8 +100,11 @@ export const register: Register = on => {
         '"work on the item I picked", "start the backlog item", or names one to work ' +
         'on, read `handoff/current` (and/or the named item in `items`) from the board ' +
         'db to get its name and notes, set that item’s status to "doing", delete ' +
-        '`handoff/current`, and then actually start the work. If `handoff/current` is ' +
-        'missing and the user did not name an item, ask which item to start.',
+        '`handoff/current`, and then actually start the work. When the work is ' +
+        'finished, close the loop on that item’s `items` doc: set status "done", ' +
+        'finishedAt (today), and write a short `result` string — one line on what was ' +
+        'done, plus any commit SHA or PR URL. If `handoff/current` is missing and the ' +
+        'user did not name an item, ask which item to start.',
     }
     return { ...result, blocks: [...result.blocks, block] }
   })

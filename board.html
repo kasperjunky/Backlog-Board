@@ -153,7 +153,11 @@
   .card .caret:hover { color: var(--fg); background: var(--surface-2); }
   .card.collapsed .caret { transform: rotate(-90deg); }
   .card.collapsed { padding-bottom: 10px; }
-  .card.collapsed .why, .card.collapsed .meta, .card.collapsed .worklane { display: none; }
+  .card.collapsed .why, .card.collapsed .meta, .card.collapsed .worklane, .card.collapsed .resultline { display: none; }
+  .resultline { font-size: 12px; line-height: 1.4; color: var(--fg); word-break: break-word; display: flex; gap: 5px; align-items: baseline; }
+  .resultline .rk { color: var(--nice); font-weight: 700; flex: none; }
+  .resultline .rt { min-width: 0; }
+  .resultline .rlink { color: var(--accent); }
   .card .colorbtn .cdot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(128,128,128,.4); display: block; }
   .card .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 2px; }
   .card .palette .sw { width: 19px; height: 19px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
@@ -208,6 +212,17 @@
   .toolbar .clearf:hover { border-color: var(--accent); }
   .toolbar .fsummary { font-size: 12px; color: var(--muted); margin-left: auto; }
   .board.filtering .card { cursor: default; }
+  .toolbar .export { font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  .toolbar .export:hover { border-color: var(--accent); }
+
+  .exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 50; }
+  .exp-card { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px; width: min(640px, 100%); max-height: 80vh; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+  .exp-h { font-weight: 650; font-size: 14px; }
+  .exp-ta { width: 100%; flex: 1; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); color: var(--fg); resize: vertical; }
+  .exp-row { display: flex; gap: 8px; justify-content: flex-end; }
+  .exp-btn { font: inherit; font-size: 13px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  .exp-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .exp-btn:hover { border-color: var(--accent); }
 
   .adder { padding: 0 10px 11px; }
   .adder input { width: 100%; font: inherit; font-size: 13.5px; border: 1px dashed var(--line-strong); background: transparent; color: var(--fg); border-radius: 9px; padding: 8px 10px; }
@@ -275,6 +290,7 @@
     </div>
     <button type="button" class="clearf" id="clearFilters" hidden>Clear filters</button>
     <span class="fsummary" id="filterSummary" hidden></span>
+    <button type="button" class="export" id="exportMd" title="Download a Markdown snapshot of the board">⬇ Export .md</button>
   </div>
 
   <div class="board" id="board">
@@ -321,6 +337,22 @@
 
   function today() { return new Date().toISOString().slice(0, 10); }
   function esc(s) { return String(s == null ? "" : s); }
+  function appendLinkified(parent, text) {
+    var re = /(https?:\/\/[^\s]+)/g, last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var a = document.createElement("a"); a.href = m[0]; a.textContent = m[0]; a.target = "_blank"; a.rel = "noopener noreferrer"; a.className = "rlink";
+      parent.appendChild(a); last = m.index + m[0].length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function resultLine(text) {
+    var d = document.createElement("div"); d.className = "resultline"; d.title = "Result (what Claude did)";
+    var k = document.createElement("span"); k.className = "rk"; k.textContent = "✓";
+    var t = document.createElement("span"); t.className = "rt"; appendLinkified(t, text);
+    d.appendChild(k); d.appendChild(t);
+    return d;
+  }
   function byId(id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return state.items[i]; return null; }
   function active() { return state.items.filter(function (i) { return i.status !== "done"; }); }
   function inCol(c) { return active().filter(function (i) { return i.priority === c; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
@@ -377,7 +409,7 @@
   function addItem(col, name) {
     name = name.trim(); if (!name) return;
     var id = "b" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
+    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, result: "", status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
     state.items.push(it); render(); writeFull(it);
   }
 
@@ -485,7 +517,9 @@
       worklane.appendChild(work);
     }
 
-    li.appendChild(row1); li.appendChild(why); li.appendChild(meta); li.appendChild(worklane);
+    li.appendChild(row1); li.appendChild(why);
+    if (it.result) li.appendChild(resultLine(it.result));
+    li.appendChild(meta); li.appendChild(worklane);
 
     li.addEventListener("dragstart", function (e) {
       dragId = it.id; suppress = true; li.classList.add("dragging"); boardEl.classList.add("dragging");
@@ -627,6 +661,7 @@
         var why = document.createElement("div"); why.className = "arc-why"; why.textContent = it.notes;
         li.appendChild(why);
       }
+      if (it.result) li.appendChild(resultLine(it.result));
 
       var m = document.createElement("div"); m.className = "arc-meta";
       var pr = document.createElement("span"); pr.className = "tag";
@@ -668,6 +703,65 @@
     });
   });
 
+  // ---- export to markdown ----
+  function boardToMarkdown() {
+    var out = ["# Backlog Board", "", "_Exported " + today() + "_", ""];
+    COLS.forEach(function (col) {
+      var items = inCol(col);
+      out.push("## " + PRIORITY_LABEL[col] + " (" + items.length + ")", "");
+      if (!items.length) { out.push("_None_", ""); return; }
+      items.forEach(function (it) {
+        out.push("- **" + it.name + "** — value " + (it.value || 0) + "/5 · effort " + (it.effort || "M") + " · " + (it.status === "doing" ? "In progress" : "To do"));
+        if (it.notes) out.push("  - " + it.notes);
+      });
+      out.push("");
+    });
+    var arc = state.items.filter(function (i) { return i.status === "done"; })
+      .sort(function (a, b) { return (b.finishedAt || "").localeCompare(a.finishedAt || ""); });
+    out.push("## Archive (" + arc.length + ")", "");
+    if (!arc.length) out.push("_None_", "");
+    else arc.forEach(function (it) {
+      out.push("- ~~" + it.name + "~~ — " + PRIORITY_LABEL[it.priority] + " · value " + (it.value || 0) + "/5 · effort " + (it.effort || "M") + (it.finishedAt ? " · done " + it.finishedAt : ""));
+      if (it.notes) out.push("  - " + it.notes);
+    });
+    return out.join("\n") + "\n";
+  }
+  function doExport() {
+    var md = boardToMarkdown();
+    if (!(window.claude && window.claude.use)) { showExportFallback(md); return; }
+    window.claude.use("downloads").then(function (dl) {
+      if (!dl) { showExportFallback(md); return; }
+      dl.save({ filename: "backlog.md", data: md }).then(function () {}, function (err) {
+        if (err && err.code === "declined") return;
+        showExportFallback(md);
+      });
+    }, function () { showExportFallback(md); });
+  }
+  function showExportFallback(md) {
+    var ov = document.createElement("div"); ov.className = "exp-overlay";
+    var card = document.createElement("div"); card.className = "exp-card";
+    var h = document.createElement("div"); h.className = "exp-h"; h.textContent = "Copy your Markdown export";
+    var ta = document.createElement("textarea"); ta.className = "exp-ta"; ta.readOnly = true; ta.value = md;
+    var row = document.createElement("div"); row.className = "exp-row";
+    var copy = document.createElement("button"); copy.type = "button"; copy.className = "exp-btn primary"; copy.textContent = "Copy";
+    copy.addEventListener("click", function () {
+      ta.focus(); ta.select();
+      var done = function () { copy.textContent = "Copied ✓"; };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(done, function () { try { document.execCommand("copy"); done(); } catch (e) {} });
+        else { document.execCommand("copy"); done(); }
+      } catch (e) { try { document.execCommand("copy"); done(); } catch (x) {} }
+    });
+    var close = document.createElement("button"); close.type = "button"; close.className = "exp-btn"; close.textContent = "Close";
+    close.addEventListener("click", function () { ov.remove(); });
+    row.appendChild(copy); row.appendChild(close);
+    card.appendChild(h); card.appendChild(ta); card.appendChild(row);
+    ov.appendChild(card);
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+    ta.focus(); ta.select();
+  }
+
   // ---- filter / search toolbar ----
   function applyFilterUI() {
     var active = filterActive();
@@ -699,6 +793,8 @@
       document.querySelectorAll(".toolbar .fchip.active").forEach(function (b) { b.classList.remove("active"); });
       applyFilterUI(); render();
     });
+    var exp = document.getElementById("exportMd");
+    if (exp) exp.addEventListener("click", function () { doExport(); });
   })();
 
   render(); // first frame (empty skeleton)
@@ -727,6 +823,7 @@
             notes: typeof data.notes === "string" ? data.notes : "",
             collapsed: data.collapsed === true,
             color: typeof data.color === "string" ? data.color : null,
+            result: typeof data.result === "string" ? data.result : "",
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
             addedAt: data.addedAt || "",
