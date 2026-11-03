@@ -79,3 +79,26 @@ test('the backlog command points the user at the board', async ($: any, on: any)
   const out = await $.command.run({ command: 'backlog', args: '' })
   expect((out as any).text).toMatch(/show backlog|open the board/i)
 })
+
+test('a reworded / expanded near-duplicate is caught by fuzzy dedup', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj5', surface: 'desktop', isInteractive: true })
+
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Add dark mode toggle' })
+  // reworded ("a", "-", "!") — exact-normalize differs, but the words overlap
+  const dup = await $.tool.call({ tool: 'mcp__backlog__add', name: 'add a dark-mode toggle!' })
+  expect((dup as any).result).toMatch(/near-duplicate/i)
+
+  expect(readFile(files).inbox.length).toBe(1)
+})
+
+test('a genuinely different item is not fuzzy-flagged', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj6', surface: 'desktop', isInteractive: true })
+
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Add dark mode toggle' })
+  const r = await $.tool.call({ tool: 'mcp__backlog__add', name: 'Export board to CSV' })
+  expect((r as any).result).toMatch(/Added #/)
+
+  expect(readFile(files).inbox.length).toBe(2)
+})

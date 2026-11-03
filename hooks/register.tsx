@@ -70,24 +70,31 @@ export const register: Register = on => {
         'CAPTURE: when the user says "later", "save to backlog", or clearly defers ' +
         'a task, call mcp__backlog__add with { name, priority (urgent|important|nice), ' +
         'value (1-5), effort (S|M|L|XL), notes }; infer fields from context and put ' +
-        'any reason the user gave for the task into notes; duplicates are skipped.\n' +
+        'any reason the user gave for the task into notes. The add tool skips exact ' +
+        'and near-duplicate (word-overlap) names; it cannot judge meaning, so before ' +
+        'adding, if the new task clearly means the same as something already captured ' +
+        '(even if worded very differently, e.g. "push to GitHub" vs "re-push the ' +
+        'mod"), do not just add it — tell the user it looks like a duplicate of that ' +
+        'item and ask whether to add anyway or skip.\n' +
         'AUTO-SYNC: right after a successful add (the tool replies "Added #…"), ' +
         'immediately sync the new item to the board — do exactly the SHOW / OPEN ' +
         'drain described below (write each inbox item into the board’s `items` ' +
-        'collection, set inbox to [], append the drained normalized names to `known`, ' +
+        'collection, set inbox to [], append each drained item’s normalized name to ' +
+        '`known` and its original name to `knownNames`, ' +
         'write the file back) but do NOT open the board; just confirm the item was ' +
         'added. If boardUrl is null, skip the sync and leave the item in inbox for the ' +
         'next "show backlog" (do not build a board just for a capture). Do not capture ' +
         'the task currently being worked on, and do not mention the backlog unless the ' +
         'user brings it up or an item was added.\n' +
         'SHOW / OPEN: when the user asks to show, open or see the backlog or board, ' +
-        'read that JSON file — it is { nextId, known, inbox, boardUrl }. If boardUrl ' +
+        'read that JSON file — it is { nextId, known, knownNames, inbox, boardUrl }. If boardUrl ' +
         'is set, drain every item in `inbox` into that artifact’s `items` ' +
         'collection with the artifact database (one document per item; doc id = the ' +
         'item id as a string; fields name, priority, value, effort, notes, ' +
         'status:"todo", order = the item id, addedAt, finishedAt:null), then set ' +
         'inbox to [], append each drained item’s normalized name (lowercased, ' +
-        'non-alphanumerics removed) to `known`, write the file back, and open the ' +
+        'non-alphanumerics removed) to `known` and its original name to `knownNames`, ' +
+        'write the file back, and open the ' +
         'board artifact. If boardUrl is null, create the board from the template ' +
         'that ships with this plugin: publish the HTML file at ' + boardTemplate +
         ' as a new Artifact with capabilities {db:{}, downloads:true} (that file IS ' +
@@ -128,6 +135,10 @@ export const register: Register = on => {
     if (file.known.includes(norm)) {
       return { result: 'Looks like "' + name + '" is already on your backlog board. Not added.' }
     }
+    const fuzzy = fuzzyDupName(name, file.knownNames.concat(file.inbox.map(i => i.name)))
+    if (fuzzy) {
+      return { result: 'Looks like a near-duplicate of "' + fuzzy + '" in your backlog. Not added. If it is genuinely different, rephrase the name and add again.' }
+    }
 
     const item: InboxItem = {
       id: file.nextId,
@@ -163,7 +174,7 @@ export const register: Register = on => {
 // ---- pure helpers (no $) ----
 
 function emptyFile(): BacklogFile {
-  return { nextId: 1, known: [], inbox: [], boardUrl: null }
+  return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null }
 }
 
 function today(): string {
@@ -174,6 +185,40 @@ function normalizeName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
+const STOP: Record<string, boolean> = {
+  the: true, a: true, an: true, to: true, of: true, and: true, for: true,
+  in: true, on: true, at: true, it: true, is: true, this: true, that: true,
+  with: true, my: true, your: true, new: true,
+}
+function tokenize(s: string): string[] {
+  return s.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !STOP[w])
+}
+// Lexical near-duplicate: high word overlap (Jaccard >= 0.6) or one name's
+// significant words are a subset of the other's with >= 2 shared. Catches
+// rewordings and expansions; true semantic dups are Claude's job (see context).
+function fuzzyDupName(name: string, names: string[]): string | null {
+  const a = tokenize(name)
+  if (!a.length) return null
+  const aset: Record<string, boolean> = {}
+  a.forEach(w => { aset[w] = true })
+  const aKeys = Object.keys(aset)
+  for (const other of names) {
+    const b = tokenize(other)
+    if (!b.length) continue
+    const bset: Record<string, boolean> = {}
+    b.forEach(w => { bset[w] = true })
+    const bKeys = Object.keys(bset)
+    let shared = 0
+    aKeys.forEach(w => { if (bset[w]) shared++ })
+    let union = aKeys.length
+    bKeys.forEach(w => { if (!aset[w]) union++ })
+    const jaccard = union ? shared / union : 0
+    const subset = shared === aKeys.length || shared === bKeys.length
+    if (jaccard >= 0.6 || (subset && shared >= 2)) return other
+  }
+  return null
+}
+
 function safeParse(txt: string): unknown {
   try { return JSON.parse(txt) } catch { return {} }
 }
@@ -182,11 +227,13 @@ function normalizeFile(obj: unknown): BacklogFile {
   const o = (obj && typeof obj === 'object' ? obj : {}) as Record<string, unknown>
   const inboxRaw = Array.isArray(o.inbox) ? o.inbox : []
   const knownRaw = Array.isArray(o.known) ? o.known : []
+  const knownNamesRaw = Array.isArray(o.knownNames) ? o.knownNames : []
   const inbox: InboxItem[] = inboxRaw.map(toItem).filter((x): x is InboxItem => x !== null)
   const known: string[] = knownRaw.filter((x): x is string => typeof x === 'string')
+  const knownNames: string[] = knownNamesRaw.filter((x): x is string => typeof x === 'string')
   const nextId = typeof o.nextId === 'number' && o.nextId > 0 ? Math.floor(o.nextId) : inbox.length + 1
   const boardUrl = typeof o.boardUrl === 'string' ? o.boardUrl : null
-  return { nextId, known, inbox, boardUrl }
+  return { nextId, known, knownNames, inbox, boardUrl }
 }
 
 function toItem(raw: unknown): InboxItem | null {

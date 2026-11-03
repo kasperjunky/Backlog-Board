@@ -19,6 +19,7 @@ export type InboxItem = {
 export type BacklogFile = {
   nextId: number
   known: string[]
+  knownNames: string[]
   inbox: InboxItem[]
   boardUrl: string | null
 }
