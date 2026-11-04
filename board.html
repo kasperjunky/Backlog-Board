@@ -249,6 +249,20 @@
   .toolbar .sortbtn.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .toolbar .export { font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
   .toolbar .export:hover { border-color: var(--accent); }
+  .toolbar .projwrap { position: relative; display: inline-flex; }
+  .toolbar .projbtn { font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  .toolbar .projbtn:hover { border-color: var(--accent); }
+  .projmenu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 236px; max-width: 320px; max-height: 320px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.22); padding: 6px; }
+  .projmenu .ph { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px 4px; }
+  .projmenu a, .projmenu .cur { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; font-size: 13px; color: var(--fg); text-decoration: none; }
+  .projmenu a:hover { background: var(--surface-2); }
+  .projmenu .cur { color: var(--muted); cursor: default; }
+  .projmenu .here { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); flex: none; }
+  .projmenu .pcount { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .projmenu .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); flex: none; }
+  .projmenu .cur .pdot { background: var(--accent); }
+  .projmenu .pname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .projmenu .pempty { font-size: 12px; color: var(--muted); padding: 6px 8px; line-height: 1.45; }
 
   .exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 50; }
   .exp-card { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px; width: min(640px, 100%); max-height: 80vh; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
@@ -310,6 +324,10 @@
   <div id="pickbar" class="pickbar" hidden></div>
 
   <div class="toolbar" id="toolbar">
+    <div class="projwrap">
+      <button type="button" class="projbtn" id="projBtn" aria-haspopup="true" aria-expanded="false" title="Jump to another project’s backlog">Projects ▾</button>
+      <div class="projmenu" id="projMenu" hidden></div>
+    </div>
     <input id="searchInput" class="search" type="search" placeholder="Search name or note…" aria-label="Search backlog">
     <div class="filtergroup" id="effortFilter">
       <span class="fglabel">Effort</span>
@@ -365,7 +383,7 @@
   var PRIORITY_HEX = { urgent: "#cf4636", important: "#2f6aa8", nice: "#2d8a66" };
   var COLOR_PRESETS = ["#cf4636", "#d98324", "#e0b015", "#2d8a66", "#2aa198", "#2f6aa8", "#4b45c6", "#8a5cc4", "#c0497e", "#6b7280"];
   var EFFORT_WEIGHT = { S: 1, M: 2, L: 3, XL: 4 };
-  var state = { items: [], ready: false, canWrite: true, handoffId: null };
+  var state = { items: [], ready: false, canWrite: true, handoffId: null, projects: [], currentKey: null };
   var db = null;
   var dragId = null;
   var suppress = false; // pause rebuilds while dragging
@@ -419,6 +437,43 @@
   }
   function score(it) { return (it.value || 0) / (EFFORT_WEIGHT[it.effort] || 2); }
   function isQuickWin(it) { return score(it) >= 2.5; }
+
+  // ---- project switcher ----
+  function renderProjectMenu() {
+    var menu = document.getElementById("projMenu"); if (!menu) return;
+    menu.innerHTML = "";
+    var ph = document.createElement("div"); ph.className = "ph"; ph.textContent = "Switch project"; menu.appendChild(ph);
+    var list = (state.projects || []).filter(function (p) { return p && (p.key || p.name); });
+    if (!list.length) {
+      var e0 = document.createElement("div"); e0.className = "pempty";
+      e0.textContent = "No projects synced yet. Say “sync projects” in chat to list your project backlogs here.";
+      menu.appendChild(e0); return;
+    }
+    var cur = null, others = [];
+    list.forEach(function (p) { if (state.currentKey && p.key === state.currentKey) cur = p; else others.push(p); });
+    if (cur) {
+      var c = document.createElement("div"); c.className = "cur";
+      var cd = document.createElement("span"); cd.className = "pdot"; c.appendChild(cd);
+      var cn = document.createElement("span"); cn.className = "pname"; cn.textContent = cur.name || cur.key; c.appendChild(cn);
+      var h = document.createElement("span"); h.className = "here"; h.textContent = "here"; c.appendChild(h);
+      menu.appendChild(c);
+    }
+    var linked = 0;
+    others.forEach(function (p) {
+      if (!p.url) return;
+      linked++;
+      var a = document.createElement("a"); a.href = p.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      var d = document.createElement("span"); d.className = "pdot"; a.appendChild(d);
+      var nm = document.createElement("span"); nm.className = "pname"; nm.textContent = p.name || p.key; a.appendChild(nm);
+      if (typeof p.count === "number") { var ct = document.createElement("span"); ct.className = "pcount"; ct.textContent = p.count + ""; a.appendChild(ct); }
+      menu.appendChild(a);
+    });
+    if (!linked) {
+      var e1 = document.createElement("div"); e1.className = "pempty";
+      e1.textContent = cur ? "This is your only project backlog so far. Open Claude in another project and say “show backlog” to add one." : "No other project backlogs with a board yet.";
+      menu.appendChild(e1);
+    }
+  }
 
   // ---- writes (db) ----
   function patch(id, data) {
@@ -966,9 +1021,30 @@
       boardEl.classList.toggle("sorted", sortMode === "score");
       render();
     });
+    var projBtn = document.getElementById("projBtn");
+    var projMenu = document.getElementById("projMenu");
+    if (projBtn && projMenu) {
+      projBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var willOpen = projMenu.hidden;
+        projMenu.hidden = !willOpen;
+        projBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      });
+      document.addEventListener("click", function (ev) {
+        if (!projMenu.hidden && ev.target !== projBtn && !projMenu.contains(ev.target)) {
+          projMenu.hidden = true; projBtn.setAttribute("aria-expanded", "false");
+        }
+      });
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && !projMenu.hidden) {
+          projMenu.hidden = true; projBtn.setAttribute("aria-expanded", "false"); projBtn.focus();
+        }
+      });
+    }
   })();
 
   render(); // first frame (empty skeleton)
+  renderProjectMenu(); // empty until the meta/projects doc loads
 
   // ---- db wiring ----
   function start() {
@@ -1016,6 +1092,13 @@
         var d = doc && doc.data ? doc.data() : null;
         state.handoffId = d && d.itemId ? d.itemId : null;
         if (!suppress) render();
+      }, function () {});
+      // the project switcher's list (written by Claude from the backlog files)
+      db.doc("meta/projects").onSnapshot(function (doc) {
+        var d = doc && doc.data ? doc.data() : null;
+        state.projects = d && Array.isArray(d.projects) ? d.projects : [];
+        state.currentKey = d && d.currentKey ? d.currentKey : null;
+        renderProjectMenu();
       }, function () {});
     });
   }

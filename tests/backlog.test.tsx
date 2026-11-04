@@ -102,3 +102,9 @@ test('a genuinely different item is not fuzzy-flagged', async ($: any, on: any) 
 
   expect(readFile(files).inbox.length).toBe(2)
 })
+
+test('session.start records the project cwd for the switcher', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/my/cool/proj', surface: 'desktop', isInteractive: true })
+  expect(readFile(files).cwd).toBe('/my/cool/proj')
+})

@@ -22,9 +22,16 @@ export const register: Register = on => {
     try { root = $.plugin.root } catch { root = '' }
     boardTemplate = (root + '/board.html').replace(/\\/g, '/')
 
-    // Create this project's backlog file the first time we see it.
-    if (!(await $.fs.exists(filePath))) {
-      await $.fs.write(filePath, JSON.stringify(emptyFile(), null, 2))
+    // Create this project's backlog file the first time we see it, and keep the
+    // project's cwd recorded so the cross-project switcher can show a friendly
+    // name for it.
+    const existed = await $.fs.exists(filePath)
+    let fileObj = emptyFile()
+    if (existed) { try { fileObj = normalizeFile(safeParse(await $.fs.read(filePath))) } catch { fileObj = emptyFile() } }
+    const cwdNow = e.cwd ?? ''
+    if (!existed || fileObj.cwd !== cwdNow) {
+      fileObj.cwd = cwdNow
+      await $.fs.write(filePath, JSON.stringify(fileObj, null, 2))
     }
 
     await $.tool.register({
@@ -111,7 +118,23 @@ export const register: Register = on => {
         'finished, close the loop on that item’s `items` doc: set status "done", ' +
         'finishedAt (today), and write a short `result` string — one line on what was ' +
         'done, plus any commit SHA or PR URL. If `handoff/current` is missing and the ' +
-        'user did not name an item, ask which item to start.',
+        'user did not name an item, ask which item to start.\n' +
+        'PROJECT SWITCHER (cross-project): the board’s toolbar has a "Projects ▾" ' +
+        'menu backed by a `meta/projects` doc in the board’s artifact database. Keep ' +
+        'it current: as the final step of SHOW / OPEN (after draining), and whenever ' +
+        'the user says "sync projects", "update the project switcher", or asks to see ' +
+        'or jump to other projects, rebuild that doc. To build it: list the JSON files ' +
+        'in the backlog folder (the folder holding this file, i.e. ~/.claude/backlogs/' +
+        '*.json), and for EACH read its { boardUrl, cwd } — skip any whose boardUrl is ' +
+        'null. Make one entry per remaining file: { key = the file name without ' +
+        '".json", name = the last path segment of its cwd (fall back to key if cwd is ' +
+        'empty), url = its boardUrl, count = number of active (status != "done") items ' +
+        'in that board’s `items` collection — read it with the artifact db, or omit ' +
+        'count if you do not read that board }. Then set `meta/projects` = { projects: ' +
+        '[those entries], currentKey = THIS project’s key, updatedAt = today } in the ' +
+        'CURRENT board’s db. Always include the current project’s own entry (its url is ' +
+        'this board’s boardUrl). The menu links out to each other board — the other ' +
+        'boards do not need to be open.',
     }
     return { ...result, blocks: [...result.blocks, block] }
   })
@@ -174,7 +197,7 @@ export const register: Register = on => {
 // ---- pure helpers (no $) ----
 
 function emptyFile(): BacklogFile {
-  return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null }
+  return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null, cwd: '' }
 }
 
 function today(): string {
@@ -233,7 +256,8 @@ function normalizeFile(obj: unknown): BacklogFile {
   const knownNames: string[] = knownNamesRaw.filter((x): x is string => typeof x === 'string')
   const nextId = typeof o.nextId === 'number' && o.nextId > 0 ? Math.floor(o.nextId) : inbox.length + 1
   const boardUrl = typeof o.boardUrl === 'string' ? o.boardUrl : null
-  return { nextId, known, knownNames, inbox, boardUrl }
+  const cwd = typeof o.cwd === 'string' ? o.cwd : ''
+  return { nextId, known, knownNames, inbox, boardUrl, cwd }
 }
 
 function toItem(raw: unknown): InboxItem | null {
