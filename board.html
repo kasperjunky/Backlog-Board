@@ -388,6 +388,8 @@
   var db = null;
   var dragId = null;
   var suppress = false; // pause rebuilds while dragging
+  var pendingItems = null; // a db snapshot that arrived mid-drag, applied on drop
+  var pendingRemote = false; // a db change arrived while a card field was being edited
   var filterQ = "", filterEfforts = {}, filterStatuses = {}; // view-only filters
   var sortMode = "manual"; // "manual" | "score" (quick wins first)
 
@@ -698,7 +700,15 @@
     });
     li.addEventListener("dragend", function () {
       li.classList.remove("dragging"); boardEl.classList.remove("dragging"); dragId = null; suppress = false;
-      clearDropActive(); commitOrder(); render();
+      clearDropActive();
+      var moved = commitOrder();
+      if (pendingItems) {
+        // Take the newer db snapshot, but keep the lane + position just dropped
+        // (those writes are on their way and will come back in the next one).
+        pendingItems.forEach(function (it) { var m = moved[it.id]; if (m) { it.priority = m.priority; it.order = m.order; } });
+        state.items = pendingItems; pendingItems = null;
+      }
+      render();
     });
     return li;
   }
@@ -771,6 +781,21 @@
     li.appendChild(c);
   }
 
+  // Archived cards: swap the action buttons for a two-step "Delete? / Keep".
+  function askDeleteArchived(acts, it) {
+    if (acts.querySelector(".confirm")) return;
+    var kids = Array.prototype.slice.call(acts.children);
+    kids.forEach(function (k) { k.hidden = true; });
+    var c = document.createElement("div"); c.className = "confirm";
+    var q = document.createElement("span"); q.textContent = "Delete for good?";
+    var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Delete";
+    var no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
+    yes.addEventListener("click", function () { removeItem(it.id); });
+    no.addEventListener("click", function () { c.remove(); kids.forEach(function (k) { k.hidden = false; }); });
+    c.appendChild(q); c.appendChild(yes); c.appendChild(no);
+    acts.appendChild(c); no.focus();
+  }
+
   // ---- drag targets ----
   function afterElement(listEl, y) {
     var cards = Array.prototype.slice.call(listEl.querySelectorAll(".card:not(.dragging)"));
@@ -801,7 +826,9 @@
   boardEl.addEventListener("drop", function (e) { if (dragId) e.preventDefault(); clearDropActive(); });
 
   // read the DOM arrangement back into the model + persist changed docs
+  // Returns { id: {priority, order} } for every card it moved.
   function commitOrder() {
+    var moved = {};
     COLS.forEach(function (col) {
       var listEl = boardEl.querySelector('[data-list="' + col + '"]');
       var ids = Array.prototype.slice.call(listEl.querySelectorAll(".card")).map(function (c) { return c.dataset.id; });
@@ -810,10 +837,30 @@
         var changed = false;
         if (it.priority !== col) { it.priority = col; changed = true; }
         if (it.order !== idx + 1) { it.order = idx + 1; changed = true; }
+        if (changed) moved[id] = { priority: col, order: idx + 1 };
         if (changed && db && state.canWrite) db.doc("items/" + id).update({ priority: col, order: idx + 1 }).catch(onWriteErr);
       });
     });
+    return moved;
   }
+
+  // True while the person is typing in a card (name, note, subtask, link…).
+  // A rebuild then would throw away what they have typed so far.
+  function isEditingCard() {
+    var a = document.activeElement;
+    if (!a || !a.closest || !a.closest(".card")) return false;
+    return a.isContentEditable || (a.tagName === "INPUT" && a.type !== "checkbox" && a.type !== "color") || a.tagName === "TEXTAREA";
+  }
+  // Re-render for a change that came from the db (another tab, or Claude):
+  // wait until the person leaves the field they are editing.
+  function renderRemote() {
+    if (isEditingCard()) { pendingRemote = true; return; }
+    pendingRemote = false; render();
+  }
+  document.addEventListener("focusout", function () {
+    if (!pendingRemote) return;
+    setTimeout(function () { if (pendingRemote && !isEditingCard() && !suppress) { pendingRemote = false; render(); } }, 0);
+  });
 
   // ---- render ----
   function render() {
@@ -856,8 +903,8 @@
       var acts = document.createElement("div"); acts.className = "arc-actions";
       var res = document.createElement("button"); res.className = "iconbtn"; res.type = "button"; res.title = "Restore to board"; res.innerHTML = "↺";
       res.addEventListener("click", function () { patch(it.id, { status: "todo", finishedAt: null, order: maxOrder(it.priority) + 1 }); });
-      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.innerHTML = "✕";
-      del.addEventListener("click", function () { removeItem(it.id); });
+      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete permanently"; del.innerHTML = "✕";
+      del.addEventListener("click", function () { askDeleteArchived(acts, it); });
       acts.appendChild(res); acts.appendChild(del);
       top.appendChild(nm); top.appendChild(acts);
       li.appendChild(top);
@@ -1078,7 +1125,6 @@
       db = d;
       db.collection("items").onSnapshot(function (snap) {
         clearTimeout(loadTimer);
-        if (suppress) return; // don't clobber an in-progress drag
         var items = [];
         snap.docs.forEach(function (doc) {
           var data = doc.data() || {};
@@ -1100,9 +1146,12 @@
             finishedAt: data.finishedAt || null
           });
         });
-        state.items = items; state.ready = true;
         if (!bannerEl.hidden && snap.metadata && !snap.metadata.fromCache) banner("");
-        render();
+        // mid-drag: keep the newest snapshot and apply it on drop, so no update is lost
+        if (suppress) { pendingItems = items; return; }
+        var first = !state.ready;
+        state.items = items; state.ready = true;
+        if (first) render(); else renderRemote();
       }, function (err) {
         clearTimeout(loadTimer); state.ready = true;
         if (err && err.code === "revoked") banner("Your access to this board changed. Reopen it from chat.");
@@ -1112,7 +1161,7 @@
       db.doc("handoff/current").onSnapshot(function (doc) {
         var d = doc && doc.data ? doc.data() : null;
         state.handoffId = d && d.itemId ? d.itemId : null;
-        if (!suppress) render();
+        if (!suppress) renderRemote();
       }, function () {});
       // the project switcher's list (written by Claude from the backlog files)
       db.doc("meta/projects").onSnapshot(function (doc) {
