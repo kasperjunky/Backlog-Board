@@ -215,6 +215,7 @@
   .card .linkedit input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
   .card .linkedit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .card .linkedit .le-row { display: flex; gap: 6px; }
+  .card .linkedit .le-err { font-size: 11.5px; color: var(--urgent); }
   .card .linkedit .le-btn { font: inherit; font-size: 11.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
   .card .linkedit .le-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .workbtn { font: inherit; font-size: 12px; font-weight: 650; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 8px; padding: 4px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
@@ -402,6 +403,15 @@
     return Math.round((n - d) / 86400000);
   }
   function esc(s) { return String(s == null ? "" : s); }
+  // Only plain web links may become an href; anything else (javascript:, data:,
+  // vbscript:, …) is dropped. Board data can be written by others, so never
+  // trust it as a URL.
+  function safeUrl(u) {
+    var s = typeof u === "string" ? u.trim() : "";
+    if (!/^https?:\/\/[^\s]+$/i.test(s)) return "";
+    try { var p = new URL(s); return p.protocol === "http:" || p.protocol === "https:" ? p.href : ""; } catch (e) { return ""; }
+  }
+  function safeColor(c) { return typeof c === "string" && /^#[0-9a-f]{3,8}$/i.test(c) ? c : null; }
   function appendLinkified(parent, text) {
     var re = /(https?:\/\/[^\s]+)/g, last = 0, m;
     while ((m = re.exec(text))) {
@@ -460,9 +470,10 @@
     }
     var linked = 0;
     others.forEach(function (p) {
-      if (!p.url) return;
+      var purl = safeUrl(p.url);
+      if (!purl) return;
       linked++;
-      var a = document.createElement("a"); a.href = p.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      var a = document.createElement("a"); a.href = purl; a.target = "_blank"; a.rel = "noopener noreferrer";
       var d = document.createElement("span"); d.className = "pdot"; a.appendChild(d);
       var nm = document.createElement("span"); nm.className = "pname"; nm.textContent = p.name || p.key; a.appendChild(nm);
       if (typeof p.count === "number") { var ct = document.createElement("span"); ct.className = "pcount"; ct.textContent = p.count + ""; a.appendChild(ct); }
@@ -582,7 +593,7 @@
     name.addEventListener("focus", function () { name.dataset.orig = name.textContent; });
     name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); name.blur(); } });
     name.addEventListener("blur", function () {
-      var v = name.textContent.replace(/\s+/g, " ").trim();
+      var v = name.textContent.replace(/\s+/g, " ").trim().slice(0, 200);
       if (!v) { name.textContent = name.dataset.orig || it.name; return; }
       if (v !== it.name) { name.textContent = v; patch(it.id, { name: v }); }
     });
@@ -599,7 +610,7 @@
     why.addEventListener("focus", function () { why.dataset.orig = why.textContent; });
     why.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); why.blur(); } });
     why.addEventListener("blur", function () {
-      var v = why.textContent.replace(/\s+/g, " ").trim();
+      var v = why.textContent.replace(/\s+/g, " ").trim().slice(0, 2000);
       why.textContent = v;
       if (v !== (it.notes || "")) patch(it.id, { notes: v });
     });
@@ -669,9 +680,10 @@
       work.addEventListener("click", function () { writeHandoff(it); });
       worklane.appendChild(work);
     }
-    if (it.link) {
-      var chip = document.createElement("a"); chip.className = "linkchip"; chip.href = it.link; chip.target = "_blank"; chip.rel = "noopener noreferrer";
-      chip.textContent = "🔗 " + linkLabel(it.link); chip.title = it.link;
+    var linkUrl = safeUrl(it.link);
+    if (linkUrl) {
+      var chip = document.createElement("a"); chip.className = "linkchip"; chip.href = linkUrl; chip.target = "_blank"; chip.rel = "noopener noreferrer";
+      chip.textContent = "🔗 " + linkLabel(linkUrl); chip.title = linkUrl;
       worklane.appendChild(chip);
     }
 
@@ -717,7 +729,7 @@
     if ((m = url.match(/\/pull\/(\d+)/))) return "PR #" + m[1];
     if ((m = url.match(/\/issues\/(\d+)/))) return "Issue #" + m[1];
     if ((m = url.match(/\/commit\/([0-9a-f]{7,40})/i))) return "commit " + m[1].slice(0, 7);
-    if ((m = url.match(/\/(?:tree|compare)\/([^/?#]+)/))) return decodeURIComponent(m[1]);
+    if ((m = url.match(/\/(?:tree|compare)\/([^/?#]+)/))) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
     if ((m = url.match(/^https?:\/\/([^/]+)/))) return m[1].replace(/^www\./, "");
     return "link";
   }
@@ -726,13 +738,22 @@
     if (existing) { existing.remove(); return; }
     var box = document.createElement("div"); box.className = "linkedit";
     var inp = document.createElement("input"); inp.type = "url"; inp.placeholder = "Paste a PR / branch / commit URL"; inp.value = it.link || "";
-    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); patch(it.id, { link: inp.value.trim() }); } });
+    var err = document.createElement("div"); err.className = "le-err"; err.hidden = true; err.textContent = "Only http:// or https:// links can be saved.";
+    function saveLink() {
+      var raw = inp.value.trim();
+      if (!raw) { patch(it.id, { link: "" }); return; }
+      var u = safeUrl(raw);
+      if (!u) { err.hidden = false; inp.focus(); return; }
+      patch(it.id, { link: u });
+    }
+    inp.addEventListener("input", function () { err.hidden = true; });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); saveLink(); } });
     var row = document.createElement("div"); row.className = "le-row";
     var save = document.createElement("button"); save.type = "button"; save.className = "le-btn primary"; save.textContent = "Save";
-    save.addEventListener("click", function () { patch(it.id, { link: inp.value.trim() }); });
+    save.addEventListener("click", saveLink);
     row.appendChild(save);
     if (it.link) { var rm = document.createElement("button"); rm.type = "button"; rm.className = "le-btn"; rm.textContent = "Remove"; rm.addEventListener("click", function () { patch(it.id, { link: "" }); }); row.appendChild(rm); }
-    box.appendChild(inp); box.appendChild(row);
+    box.appendChild(inp); box.appendChild(err); box.appendChild(row);
     li.appendChild(box); inp.focus();
   }
 
@@ -929,7 +950,7 @@
       items.forEach(function (it) {
         out.push("- **" + it.name + "** — value " + (it.value || 0) + "/5 · effort " + (it.effort || "M") + " · " + (it.status === "doing" ? "In progress" : "To do"));
         if (it.notes) out.push("  - " + it.notes);
-        if (it.link) out.push("  - 🔗 " + it.link);
+        if (safeUrl(it.link)) out.push("  - 🔗 " + safeUrl(it.link));
         (it.subtasks || []).forEach(function (s) { out.push("  - [" + (s.done ? "x" : " ") + "] " + s.text); });
       });
       out.push("");
@@ -1069,7 +1090,7 @@
             effort: EFFORTS.indexOf(data.effort) >= 0 ? data.effort : "M",
             notes: typeof data.notes === "string" ? data.notes : "",
             collapsed: data.collapsed === true,
-            color: typeof data.color === "string" ? data.color : null,
+            color: safeColor(data.color),
             result: typeof data.result === "string" ? data.result : "",
             link: typeof data.link === "string" ? data.link : "",
             subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).map(function (s) { return { text: s.text, done: s.done === true }; }) : [],
