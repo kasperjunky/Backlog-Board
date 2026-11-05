@@ -65,7 +65,12 @@
   }
 
   * { box-sizing: border-box; }
+  /* Base reset, repeated here so the board looks the same whether or not the
+     publishing tool wraps it in the standard artifact skeleton. */
+  [hidden] { display: none !important; }
   body {
+    margin: 0;
+    font-size: 14px;
     background: var(--bg);
     color: var(--fg);
     font-family: var(--font-body);

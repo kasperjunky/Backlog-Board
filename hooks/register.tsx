@@ -27,6 +27,17 @@ const BOARD_CAPABILITIES =
   '{path:"handoff",read:"view",write:"admin"},' +
   '{path:"meta",read:"view",write:"admin"}]}, downloads:true}'
 
+// The standard artifact page skeleton (doctype, viewport, base reset). The
+// board template is written without it; a publish path that does not add it
+// must wrap the board in it, or the page drops into quirks mode.
+const SKELETON_OPEN =
+  '<!doctype html><html><head><meta charset=utf8><meta name=viewport ' +
+  'content="width=device-width,initial-scale=1,viewport-fit=cover"><style>' +
+  ':root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);' +
+  'padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px ' +
+  'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}img{max-width:100%}' +
+  '[hidden]{display:none!important}</style></head><body>'
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const up = await $.env.get('USERPROFILE')
@@ -163,7 +174,11 @@ export const register: Register = on => {
         ' as a new Artifact with capabilities ' + BOARD_CAPABILITIES + ' (that file IS ' +
         'the board UI — ' +
         'publish it as-is, do not rewrite it), save the new artifact URL into ' +
-        'boardUrl, then drain as above.\n' +
+        'boardUrl, then drain as above. The file has no <!doctype>/<head>: if the ' +
+        'publishing tool does not wrap pages in the standard artifact skeleton ' +
+        '(e.g. a publish-files tool that serves bytes as-is), publish it as ' +
+        SKELETON_OPEN + ' + the file + </body></html>, or it renders in quirks ' +
+        'mode. The same applies whenever you republish this board.\n' +
         'WORK ON A PICK: the board has a "▶ Work on this" button that writes a ' +
         'document `handoff/current` = { itemId, name, notes, priority, value, effort } ' +
         'to the board’s artifact database. When the user says "start my backlog pick", ' +
