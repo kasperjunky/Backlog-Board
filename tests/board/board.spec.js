@@ -29,7 +29,7 @@
   await test("renders lanes in order and the archive", async function () {
     eq(lane("urgent"), ["Alpha task", "Delta urgent", "Echo urgent"], "urgent");
     eq(lane("important"), ["Beta task"], "important");
-    eq($$(".arc-item .nm").map(function (n) { return n.textContent; }), ["Gamma done"], "archive");
+    eq($$(".arc-item .nm").map(function (n) { return n.textContent; }), ["Gamma done", "Zeta old done"], "archive (newest first)");
   });
   await test("javascript: links are never rendered as links", async function () {
     eq($$(".linkchip", card("1")).length, 0, "link chips on card 1");
@@ -116,9 +116,9 @@
     $(".arc-item .iconbtn.danger").click(); await tick();
     eq(window.__writes.length, 0, "no delete yet");
     $(".arc-item .confirm button:not(.yes)").click(); await tick();
-    eq($$(".arc-item").length, 1, "kept");
+    eq($$(".arc-item").length, 2, "kept");
     $(".arc-item .iconbtn.danger").click(); $(".arc-item .confirm .yes").click(); await tick();
-    eq($$(".arc-item").length, 0, "deleted");
+    eq($$(".arc-item").length, 1, "deleted");
     eq(window.__writes, [["delete", "items/3"]]);
   });
   await test("the + by a lane name opens an input that adds cards", async function () {
@@ -140,6 +140,61 @@
     ok(/filters on/.test(t.textContent), "label: " + t.textContent);
     t.click(); search(""); await tick();
     ok(!$(".wrap").classList.contains("compact"), "expanded again");
+  });
+
+  // ---- due dates ----
+  await test("an overdue card shows a red chip and counts in the Overdue stat", async function () {
+    var chip = $(".duechip", card("1"));
+    ok(chip && chip.classList.contains("over"), "overdue chip on card 1");
+    ok(/^📅 Overdue \d+d$/.test(chip.textContent), "chip text: " + chip.textContent);
+    var far = $(".duechip", card("2"));
+    ok(far && !far.classList.contains("over") && !far.classList.contains("soon") && /^📅 Due /.test(far.textContent), "future chip: " + (far && far.className + " " + far.textContent));
+    var tile = $$(".stat").filter(function (s) { return /Overdue/i.test(s.textContent); })[0];
+    ok(tile, "Overdue tile exists");
+    eq($(".statn", tile).textContent, "1", "overdue count");
+    ok($(".statn", tile).classList.contains("warn"), "overdue tile warns");
+  });
+  await test("setting and removing a due date", async function () {
+    $(".dueadd", card("4")).click(); await tick();
+    var box = $(".dueedit", card("4")); var inp = $("input", box);
+    inp.value = "2030-05-06"; $("button.primary", box).click(); await tick();
+    ok(window.__writes.some(function (w) { return w[1] === "items/4" && w[2] && w[2].due === "2030-05-06"; }), "due saved");
+    ok($(".duechip", card("4")), "chip shown after saving");
+    $(".duechip", card("1")).click(); await tick();
+    var rm = $$(".dueedit button", card("1")).filter(function (b) { return b.textContent === "Remove"; })[0];
+    ok(rm, "Remove button for an existing due date"); rm.click(); await tick();
+    ok(window.__writes.some(function (w) { return w[1] === "items/1" && w[2] && w[2].due === ""; }), "due removed");
+    ok($(".dueadd", card("1")), "back to the set-date button");
+  });
+  await test("an impossible due date from the db is ignored", async function () {
+    window.__remote("items/5", { due: "2026-02-31" }); await tick();
+    ok(!$(".duechip", card("5")) && $(".dueadd", card("5")), "no chip for 2026-02-31");
+  });
+
+  // ---- remembered view, archive cleanup ----
+  await test("search, filters and sort are remembered in this browser", async function () {
+    var stored = function () { try { return JSON.parse(localStorage.getItem("backlog.view") || "null"); } catch (e) { return "unavailable"; } };
+    if (stored() === "unavailable") return; // storage blocked: nothing to remember
+    $('#effortFilter .fchip[data-effort="S"]').click(); $("#sortToggle").click(); search("alp"); await tick();
+    var v = stored();
+    eq([v.efforts, v.sort, v.q], [["S"], "score", "alp"], "saved view");
+    $("#clearFilters").click(); $("#sortToggle").click(); await tick();
+    v = stored();
+    eq([v.efforts, v.statuses, v.sort, v.q], [[], [], "manual", ""], "cleared view");
+  });
+  await test("the archive offers to remove cards done more than 30 days ago", async function () {
+    $("#archive").open = true;
+    var tools = $("#arcTools");
+    ok(!tools.hidden, "tools shown");
+    var b = $(".arc-clean", tools); ok(b && /Remove 1 card done more than 30 days ago/.test(b.textContent), "button: " + (b && b.textContent));
+    b.click(); await tick();
+    eq(window.__writes.length, 0, "nothing deleted before confirming");
+    $(".arc-keep", tools).click(); await tick();
+    ok($(".arc-clean", tools), "Keep goes back");
+    $(".arc-clean", tools).click(); await tick(); $("button.yes", tools).click(); await tick();
+    eq(window.__writes, [["delete", "items/6"]], "only the old card");
+    eq($$(".arc-item .nm").map(function (n) { return n.textContent; }), ["Gamma done"], "recent one kept");
+    ok(tools.hidden, "tools hide when nothing qualifies");
   });
 
   // ---- accessibility ----

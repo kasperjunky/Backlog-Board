@@ -237,6 +237,21 @@
   .card .linkbtn.on { color: var(--accent); }
   .card .linkchip { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 7px; padding: 3px 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .linkchip:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .card .duechip { font: inherit; font-size: 12px; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 7px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+  .card .duechip:hover { border-color: var(--accent); }
+  .card .duechip.soon { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+  .card .duechip.over { color: var(--accent-fg); background: var(--urgent); border-color: var(--urgent); }
+  .card .dueadd { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px dashed var(--line-strong); border-radius: 7px; padding: 3px 8px; cursor: pointer; }
+  .card .dueadd:hover { color: var(--fg); border-color: var(--accent); }
+  .card .dueedit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .card .dueedit input[type="date"] { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 4px 7px; }
+  .card .dueedit button { font: inherit; font-size: 11.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  .card .dueedit button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .card.collapsed .dueedit { display: none; }
+  .arc-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .arc-tools button { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 11px; cursor: pointer; }
+  .arc-tools button:hover { border-color: var(--accent); }
+  .arc-tools button.yes { background: var(--urgent); border-color: var(--urgent); color: #fff; }
   .card .linkedit { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
   .card .linkedit input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
   .card .linkedit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -404,6 +419,7 @@
 
   <details class="archive" id="archive">
     <summary><span class="caret">▸</span> Archive <span class="count" id="arcCount" style="margin-left:0">0</span></summary>
+    <div class="arc-tools" id="arcTools" hidden></div>
     <ul class="arc-list" id="arcList"></ul>
     <div class="empty" id="arcEmpty">Nothing archived yet. Mark a card done to move it here.</div>
   </details>
@@ -439,6 +455,32 @@
     return Math.round((n - d) / 86400000);
   }
   function esc(s) { return String(s == null ? "" : s); }
+  // ---- due dates ----
+  function safeDate(v) {
+    // a real calendar date (rejects 2026-02-31), checked in UTC so no time zone shifts it
+    if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return "";
+    var y = +v.slice(0, 4), m = +v.slice(5, 7), dd = +v.slice(8, 10);
+    var d = new Date(Date.UTC(y, m - 1, dd));
+    return d.getUTCFullYear() === y && d.getUTCMonth() === m - 1 && d.getUTCDate() === dd ? v : "";
+  }
+  function fmtDate(v) {
+    var d = new Date(v + "T00:00:00");
+    var o = { month: "short", day: "numeric" };
+    if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
+    try { return d.toLocaleDateString(undefined, o); } catch (e) { return v; }
+  }
+  // { label, cls: "over" | "soon" | "", left: days until due (negative = overdue) }
+  function dueInfo(v) {
+    if (!v) return null;
+    var past = daysSince(v); if (past == null) return null;
+    var left = -past;
+    if (left < 0) return { label: "Overdue " + (-left) + "d", cls: "over", left: left };
+    if (left === 0) return { label: "Due today", cls: "soon", left: 0 };
+    if (left === 1) return { label: "Due tomorrow", cls: "soon", left: 1 };
+    if (left <= 3) return { label: "Due in " + left + "d", cls: "soon", left: left };
+    return { label: "Due " + fmtDate(v), cls: "", left: left };
+  }
+  function isOverdue(it) { var d = dueInfo(it.due); return !!(d && d.left < 0); }
   // Only plain web links may become an href; anything else (javascript:, data:,
   // vbscript:, …) is dropped. Board data can be written by others, so never
   // trust it as a URL.
@@ -537,6 +579,12 @@
     state.items = state.items.filter(function (i) { return i.id !== id; });
     render();
     if (db) db.doc("items/" + id).delete().catch(function (e) { onWriteErr(e); });
+  }
+  function removeMany(ids) {
+    var set = {}; ids.forEach(function (id) { set[id] = true; });
+    state.items = state.items.filter(function (i) { return !set[i.id]; });
+    render();
+    if (db) ids.forEach(function (id) { db.doc("items/" + id).delete().catch(function (e) { onWriteErr(e); }); });
   }
   function onWriteErr(e) {
     if (e && e.code === "invalid_argument") { state.canWrite = false; banner("This board is read-only for you — changes won’t be saved."); }
@@ -723,6 +771,19 @@
       work.addEventListener("click", function () { writeHandoff(it); });
       worklane.appendChild(work);
     }
+    var di = dueInfo(it.due);
+    if (di) {
+      var dc = document.createElement("button"); dc.type = "button"; dc.className = "duechip" + (di.cls ? " " + di.cls : "");
+      dc.textContent = "📅 " + di.label; dc.title = "Due " + it.due + " — click to change";
+      dc.setAttribute("aria-label", di.label + " (" + it.due + "), change due date");
+      dc.addEventListener("click", function () { openDueEdit(li, it); });
+      worklane.appendChild(dc);
+    } else {
+      var da = document.createElement("button"); da.type = "button"; da.className = "dueadd"; da.textContent = "📅";
+      da.title = "Set a due date"; da.setAttribute("aria-label", "Set a due date");
+      da.addEventListener("click", function () { openDueEdit(li, it); });
+      worklane.appendChild(da);
+    }
     var linkUrl = safeUrl(it.link);
     if (linkUrl) {
       var chip = document.createElement("a"); chip.className = "linkchip"; chip.href = linkUrl; chip.target = "_blank"; chip.rel = "noopener noreferrer";
@@ -848,6 +909,23 @@
     if ((m = url.match(/\/(?:tree|compare)\/([^/?#]+)/))) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
     if ((m = url.match(/^https?:\/\/([^/]+)/))) return m[1].replace(/^www\./, "");
     return "link";
+  }
+  function openDueEdit(li, it) {
+    var existing = li.querySelector(".dueedit");
+    if (existing) { existing.remove(); return; }
+    var box = document.createElement("div"); box.className = "dueedit";
+    var inp = document.createElement("input"); inp.type = "date"; inp.value = it.due || ""; inp.setAttribute("aria-label", "Due date");
+    var save = document.createElement("button"); save.type = "button"; save.className = "primary"; save.textContent = "Save";
+    function doSave() { var v = safeDate(inp.value); if (v || !inp.value) patch(it.id, { due: v }); }
+    save.addEventListener("click", doSave);
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); doSave(); } else if (e.key === "Escape") { box.remove(); } });
+    box.appendChild(inp); box.appendChild(save);
+    if (it.due) {
+      var clr = document.createElement("button"); clr.type = "button"; clr.textContent = "Remove";
+      clr.addEventListener("click", function () { patch(it.id, { due: "" }); });
+      box.appendChild(clr);
+    }
+    li.appendChild(box); inp.focus();
   }
   function openLinkEdit(li, it) {
     var existing = li.querySelector(".linkedit");
@@ -1009,6 +1087,7 @@
     document.getElementById("arcCount").textContent = arc.length;
     arcList.innerHTML = "";
     arcEmpty.hidden = arc.length > 0;
+    renderArcTools(arc);
     arc.forEach(function (it) {
       var li = document.createElement("li"); li.className = "arc-item"; li.dataset.p = it.priority;
 
@@ -1059,6 +1138,29 @@
     }
   }
 
+  // "Remove N done more than 30 days ago", with a confirm step that survives redraws
+  var ARC_DAYS = 30, arcConfirm = false;
+  function renderArcTools(arc) {
+    var box = document.getElementById("arcTools"); if (!box) return;
+    var old = arc.filter(function (i) { var d = daysSince(i.finishedAt); return d != null && d > ARC_DAYS; });
+    box.innerHTML = "";
+    if (!old.length) { box.hidden = true; arcConfirm = false; return; }
+    box.hidden = false;
+    var n = old.length, what = n + " card" + (n === 1 ? "" : "s") + " done more than " + ARC_DAYS + " days ago";
+    if (!arcConfirm) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "arc-clean"; b.textContent = "Remove " + what;
+      b.addEventListener("click", function () { arcConfirm = true; render(); var k = document.querySelector("#arcTools .arc-keep"); if (k) k.focus(); });
+      box.appendChild(b);
+      return;
+    }
+    var q = document.createElement("span"); q.textContent = "Delete " + what + " for good?";
+    var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Delete " + n;
+    yes.addEventListener("click", function () { arcConfirm = false; removeMany(old.map(function (i) { return i.id; })); });
+    var no = document.createElement("button"); no.type = "button"; no.className = "arc-keep"; no.textContent = "Keep";
+    no.addEventListener("click", function () { arcConfirm = false; render(); });
+    box.appendChild(q); box.appendChild(yes); box.appendChild(no);
+  }
+
   function renderStats() {
     var el = document.getElementById("stats");
     if (!el) return;
@@ -1079,7 +1181,8 @@
       { n: String(doing), l: "In progress" },
       { n: String(week), l: "Done · 7d" },
       { n: oldest + "d", l: "Oldest active", title: oldestItem ? oldestItem.name : "", warn: oldest >= 14 },
-      { n: avg + "d", l: "Avg age" }
+      { n: avg + "d", l: "Avg age" },
+      { n: String(act.filter(isOverdue).length), l: "Overdue", warn: act.some(isOverdue), title: act.filter(isOverdue).map(function (i) { return i.name; }).join(", ") }
     ];
     el.innerHTML = "";
     tiles.forEach(function (t) {
@@ -1150,6 +1253,7 @@
       items.forEach(function (it) {
         out.push("- **" + it.name + "** — value " + (it.value || 0) + "/5 · effort " + (it.effort || "M") + " · " + (it.status === "doing" ? "In progress" : "To do"));
         if (it.notes) out.push("  - " + it.notes);
+        if (it.due) out.push("  - 📅 due " + it.due);
         if (safeUrl(it.link)) out.push("  - 🔗 " + safeUrl(it.link));
         (it.subtasks || []).forEach(function (s) { out.push("  - [" + (s.done ? "x" : " ") + "] " + s.text); });
       });
@@ -1234,6 +1338,31 @@
     renderControlsToggle();
   })();
 
+  // ---- remembered view: search, filters and sort, per browser ----
+  var VIEW_KEY = "backlog.view";
+  function saveView() {
+    try {
+      window.localStorage.setItem(VIEW_KEY, JSON.stringify({
+        q: filterQ, efforts: Object.keys(filterEfforts), statuses: Object.keys(filterStatuses), sort: sortMode
+      }));
+    } catch (e) {}
+  }
+  function loadView() {
+    var v = null;
+    try { v = JSON.parse(window.localStorage.getItem(VIEW_KEY) || "null"); } catch (e) { v = null; }
+    if (!v || typeof v !== "object") return;
+    if (typeof v.q === "string") filterQ = v.q.slice(0, 200).trim().toLowerCase();
+    (Array.isArray(v.efforts) ? v.efforts : []).forEach(function (k) { if (EFFORTS.indexOf(k) >= 0) filterEfforts[k] = true; });
+    (Array.isArray(v.statuses) ? v.statuses : []).forEach(function (k) { if (k === "todo" || k === "doing") filterStatuses[k] = true; });
+    if (v.sort === "score" || v.sort === "manual") sortMode = v.sort;
+  }
+  function applySortUI() {
+    var sortBtn = document.getElementById("sortToggle"); if (!sortBtn) return;
+    sortBtn.textContent = sortMode === "score" ? "Sort: Quick wins ★" : "Sort: Manual";
+    sortBtn.classList.toggle("active", sortMode === "score");
+    boardEl.classList.toggle("sorted", sortMode === "score");
+  }
+
   // ---- filter / search toolbar ----
   function applyFilterUI() {
     var active = filterActive();
@@ -1244,19 +1373,24 @@
   }
   (function initToolbar() {
     var search = document.getElementById("searchInput");
-    if (search) search.addEventListener("input", function () { filterQ = search.value.trim().toLowerCase(); applyFilterUI(); render(); });
+    loadView();
+    if (search) search.value = filterQ;
+    document.querySelectorAll("#effortFilter .fchip").forEach(function (b) { b.classList.toggle("active", !!filterEfforts[b.dataset.effort]); });
+    document.querySelectorAll("#statusFilter .fchip").forEach(function (b) { b.classList.toggle("active", !!filterStatuses[b.dataset.status]); });
+    applySortUI(); applyFilterUI();
+    if (search) search.addEventListener("input", function () { filterQ = search.value.trim().toLowerCase(); saveView(); applyFilterUI(); render(); });
     document.querySelectorAll("#effortFilter .fchip").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.effort;
         if (filterEfforts[k]) delete filterEfforts[k]; else filterEfforts[k] = true;
-        b.classList.toggle("active"); applyFilterUI(); render();
+        b.classList.toggle("active"); saveView(); applyFilterUI(); render();
       });
     });
     document.querySelectorAll("#statusFilter .fchip").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.status;
         if (filterStatuses[k]) delete filterStatuses[k]; else filterStatuses[k] = true;
-        b.classList.toggle("active"); applyFilterUI(); render();
+        b.classList.toggle("active"); saveView(); applyFilterUI(); render();
       });
     });
     var clr = document.getElementById("clearFilters");
@@ -1264,17 +1398,14 @@
       filterQ = ""; filterEfforts = {}; filterStatuses = {};
       if (search) search.value = "";
       document.querySelectorAll(".toolbar .fchip.active").forEach(function (b) { b.classList.remove("active"); });
-      applyFilterUI(); render();
+      saveView(); applyFilterUI(); render();
     });
     var exp = document.getElementById("exportMd");
     if (exp) exp.addEventListener("click", function () { doExport(); });
     var sortBtn = document.getElementById("sortToggle");
     if (sortBtn) sortBtn.addEventListener("click", function () {
       sortMode = sortMode === "score" ? "manual" : "score";
-      sortBtn.textContent = sortMode === "score" ? "Sort: Quick wins ★" : "Sort: Manual";
-      sortBtn.classList.toggle("active", sortMode === "score");
-      boardEl.classList.toggle("sorted", sortMode === "score");
-      render();
+      saveView(); applySortUI(); render();
     });
     var projBtn = document.getElementById("projBtn");
     var projMenu = document.getElementById("projMenu");
@@ -1326,6 +1457,7 @@
             color: safeColor(data.color),
             result: typeof data.result === "string" ? data.result : "",
             link: typeof data.link === "string" ? data.link : "",
+            due: safeDate(data.due),
             subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).map(function (s) { return { text: s.text, done: s.done === true }; }) : [],
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,

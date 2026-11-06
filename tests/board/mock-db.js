@@ -29,11 +29,12 @@
   window.__writes = [];
   window.__seed = function () {
     return {
-      "items/1": { name: "Alpha task", priority: "urgent", value: 4, effort: "S", notes: "note one", status: "todo", order: 1, addedAt: "2026-11-01", link: "javascript:alert(1)" },
+      "items/1": { name: "Alpha task", priority: "urgent", value: 4, effort: "S", notes: "note one", status: "todo", order: 1, addedAt: "2026-11-01", link: "javascript:alert(1)", due: "2026-01-01" },
       "items/4": { name: "Delta urgent", priority: "urgent", value: 3, effort: "M", notes: "", status: "todo", order: 2, addedAt: "2026-11-04", color: "red;background:url(x)" },
       "items/5": { name: "Echo urgent", priority: "urgent", value: 1, effort: "XL", notes: "", status: "todo", order: 3, addedAt: "2026-11-05" },
-      "items/2": { name: "Beta task", priority: "important", value: 2, effort: "M", notes: "", status: "todo", order: 1, addedAt: "2026-11-02", link: "https://github.com/a/b/tree/%E0%A4" },
-      "items/3": { name: "Gamma done", priority: "nice", value: 3, effort: "L", notes: "", status: "done", order: 1, addedAt: "2026-10-01", finishedAt: "2026-11-03" }
+      "items/2": { name: "Beta task", priority: "important", value: 2, effort: "M", notes: "", status: "todo", order: 1, addedAt: "2026-11-02", link: "https://github.com/a/b/tree/%E0%A4", due: "2099-01-01" },
+      "items/3": { name: "Gamma done", priority: "nice", value: 3, effort: "L", notes: "", status: "done", order: 1, addedAt: "2026-10-01", finishedAt: "2026-11-03" },
+      "items/6": { name: "Zeta old done", priority: "nice", value: 2, effort: "S", notes: "", status: "done", order: 2, addedAt: "2025-12-01", finishedAt: "2026-01-15" }
     };
   };
   window.__reset = function (next) {

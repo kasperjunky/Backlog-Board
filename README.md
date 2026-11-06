@@ -12,6 +12,9 @@ Kanban board of everything you've saved for that project.
   lanes (Urgent / Important / Nice to have) plus an Archive. Drag cards to reorder or
   re-prioritize, click to edit the name, note, value, effort, or status, and mark cards
   done to archive them.
+- **Due dates.** Give a card a date with 📅; it turns amber when it's close and red when
+  overdue, and an *Overdue* tile counts them. Search, filters and sort are remembered in
+  your browser, and the archive offers to clear cards finished more than 30 days ago.
 - **Quick commands.** `/backlog` shows your board's link and anything not on it yet;
   `/backlog add <task> !urgent` captures without asking Claude (`!important`, `!nice` work
   too); `/backlog inbox` lists captures waiting to sync.
