@@ -97,7 +97,10 @@ shows a bar at the top; tell Claude *"start my backlog pick"*. **Clear** un-pick
   *Grape*, *Mono* or *High contrast*, plus **Auto / Light / Dark** (Auto follows your system
   or Claude's own light/dark setting). The choice is saved on the board, so it looks the
   same on every device and for anyone you share it with. Every palette meets contrast
-  guidelines in both light and dark.
+  guidelines in both light and dark. Under **Custom colors** you can also pick your own
+  **Background** (the page, lane panels, tiles and menus follow it) and **Cards** color, on
+  top of any palette — kept separately for light and dark mode, with **Reset** to undo and a
+  warning if a color would make text hard to read.
 - **Projects ▾** — jump to another project's board. The list is refreshed whenever you open
   the backlog or say *"sync projects"*.
 - **Search** — matches card names and notes.

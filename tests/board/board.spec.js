@@ -257,6 +257,66 @@
     await themeReset();
   });
 
+  // ---- custom background / card colors ----
+  async function setColor(key, hex) {
+    var m = await openTheme(); var inp = $('input[data-custom="' + key + '"]', m);
+    inp.value = hex; inp.dispatchEvent(new Event("input")); inp.dispatchEvent(new Event("change")); await tick();
+  }
+  async function resetColor(key) {
+    var m = await openTheme(); var b = $('input[data-custom="' + key + '"]', m).parentElement.querySelector(".th-reset");
+    if (!b.disabled) { b.click(); await tick(); }
+  }
+  await test("a custom background recolors the page and lane panels, saved per mode", async function () {
+    await pick('[data-mode="dark"]');
+    await setColor("bg", "#0d1b2a");
+    eq(rootVar("bg"), "#0d1b2a", "page background");
+    ok(/color-mix\(in srgb, #0d1b2a/.test(rootVar("surface-2")), "lane panels shaded from it: " + rootVar("surface-2"));
+    ok(/color-mix\(in srgb, #0d1b2a/.test(rootVar("surface")), "tiles, inputs and menus follow it: " + rootVar("surface"));
+    var cardSwatch = $('#themeMenu input[data-custom="card"]').value;
+    ok(/^#[0-9a-f]{6}$/.test(cardSwatch) && cardSwatch !== "#201c16", "Cards swatch shows the painted color, not the old brown: " + cardSwatch);
+    var w = window.__writes.filter(function (x) { return x[1] === "meta/theme"; }).pop();
+    eq(w[2].custom, { light: {}, dark: { bg: "#0d1b2a" } }, "saved for dark mode only");
+    eq(getComputedStyle(document.body).backgroundColor, "rgb(13, 27, 42)", "body painted");
+    await pick('[data-mode="light"]');
+    eq(rootVar("bg"), "", "light mode keeps its own background");
+    await pick('[data-mode="dark"]'); await resetColor("bg");
+    eq(rootVar("bg"), "", "Reset removes it");
+    await themeReset();
+  });
+  await test("a custom card color recolors every card with just a light lane tint", async function () {
+    await pick('[data-mode="light"]');
+    await setColor("card", "#fff7d6");
+    eq(rootVar("card"), "#fff7d6", "card token");
+    eq(rootVar("card-tint"), "12%", "lighter lane tint");
+    var bg = getComputedStyle(card("4")).backgroundColor;
+    ok(bg !== "" && bg !== "rgba(0, 0, 0, 0)", "card painted: " + bg);
+    var arc = getComputedStyle($(".arc-item")).backgroundColor;
+    eq(arc, "rgb(255, 247, 214)", "archive cards use it too");
+    await resetColor("card");
+    eq(rootVar("card"), "", "Reset removes it");
+    await themeReset();
+  });
+  await test("a hard-to-read custom color shows a warning", async function () {
+    await pick('[data-mode="dark"]');
+    var m = await openTheme(); var inp = $('input[data-custom="bg"]', m);
+    inp.value = "#f4f4f4"; inp.dispatchEvent(new Event("input")); await tick();
+    var warn = inp.parentElement.nextElementSibling;
+    ok(warn.classList.contains("th-warn") && !warn.hidden, "warning shown");
+    ok(/hard to read/.test(warn.textContent), "says why: " + warn.textContent);
+    inp.value = "#101820"; inp.dispatchEvent(new Event("input")); await tick();
+    ok(warn.hidden, "dark color: no warning");
+    inp.dispatchEvent(new Event("change")); await tick();
+    await resetColor("bg"); await themeReset();
+  });
+  await test("custom colors from the board are applied; invalid ones are ignored", async function () {
+    window.__remote("meta/theme", { palette: "warm", mode: "light", custom: { light: { bg: "#eef4ff", card: "url(x)" }, dark: { bg: "red" } } }); await tick();
+    eq(rootVar("bg"), "#eef4ff", "valid bg applied");
+    eq(rootVar("card"), "", "invalid card ignored");
+    window.__remote("meta/theme", { palette: "warm", mode: "auto", custom: null }); await tick();
+    eq(rootVar("bg"), "", "cleared");
+    await themeReset();
+  });
+
   // ---- accessibility ----
   await test("every card and archive button has an accessible name", async function () {
     var bad = $$(".card button, .arc-item button").filter(function (b) {

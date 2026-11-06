@@ -27,6 +27,8 @@
     --nice-line: #b9ddcb;
 
     --shadow: 0 1px 2px rgba(33,29,23,.06), 0 4px 14px rgba(33,29,23,.07);
+    --card: var(--surface);
+    --card-tint: 55%;
     --radius: 14px;
     --font-display: "Fraunces", Georgia, "Times New Roman", serif;
     --font-body: "Hanken Grotesk", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -191,7 +193,7 @@
   .board.dragging .col[data-empty] .list .empty { display: block; }
 
   .card {
-    background: var(--surface);
+    background: var(--card);
     border: 1px solid var(--line);
     border-left: 4px solid var(--line-strong);
     border-radius: 11px;
@@ -204,9 +206,9 @@
   .card:active { cursor: grabbing; }
   .card.dragging { opacity: .45; }
   .card.ghost { outline: 2px dashed var(--accent); outline-offset: 2px; opacity: .6; }
-  .card[data-p="urgent"] { border-left-color: var(--urgent); background: color-mix(in srgb, var(--urgent-soft) 55%, var(--surface)); }
-  .card[data-p="important"] { border-left-color: var(--important); background: color-mix(in srgb, var(--important-soft) 55%, var(--surface)); }
-  .card[data-p="nice"] { border-left-color: var(--nice); background: color-mix(in srgb, var(--nice-soft) 55%, var(--surface)); }
+  .card[data-p="urgent"] { border-left-color: var(--urgent); background: color-mix(in srgb, var(--urgent-soft) var(--card-tint), var(--card)); }
+  .card[data-p="important"] { border-left-color: var(--important); background: color-mix(in srgb, var(--important-soft) var(--card-tint), var(--card)); }
+  .card[data-p="nice"] { border-left-color: var(--nice); background: color-mix(in srgb, var(--nice-soft) var(--card-tint), var(--card)); }
 
   .card .row1 { display: flex; align-items: flex-start; gap: 8px; }
   .card .name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 550; outline: none; border-radius: 6px; padding: 1px 3px; margin: -1px -3px; word-break: break-word; }
@@ -363,6 +365,12 @@
   .thememenu .th-modes { display: flex; gap: 4px; padding: 4px 8px 6px; }
   .thememenu .th-modes button { flex: 1; font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 6px; cursor: pointer; }
   .thememenu .th-modes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .thememenu .th-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 13px; }
+  .thememenu .th-row label { flex: 1 1 auto; }
+  .thememenu .th-row input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: none; cursor: pointer; }
+  .thememenu .th-row .th-reset { font: inherit; font-size: 11.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .thememenu .th-row .th-reset:disabled { opacity: .45; cursor: default; }
+  .thememenu .th-warn { font-size: 11.5px; color: var(--urgent); padding: 0 8px 4px; line-height: 1.4; }
   .thememenu .th-note { font-size: 11.5px; color: var(--muted); padding: 2px 8px 6px; line-height: 1.4; }
   .projmenu .pempty { font-size: 12px; color: var(--muted); padding: 6px 8px; line-height: 1.45; }
 
@@ -389,7 +397,7 @@
   .archive summary .caret { transition: transform .15s; }
   .archive[open] summary .caret { transform: rotate(90deg); }
   .arc-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
-  .arc-item { display: flex; flex-direction: column; gap: 7px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 10px; padding: 10px 11px; font-size: 13px; min-width: 0; }
+  .arc-item { display: flex; flex-direction: column; gap: 7px; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 10px; padding: 10px 11px; font-size: 13px; min-width: 0; }
   .arc-item[data-p="urgent"] { border-left-color: var(--urgent); }
   .arc-item[data-p="important"] { border-left-color: var(--important); }
   .arc-item[data-p="nice"] { border-left-color: var(--nice); }
@@ -734,7 +742,7 @@
     li.draggable = !filterActive() && sortMode !== "score";
     if (it.color) {
       li.style.borderLeftColor = it.color;
-      li.style.background = "color-mix(in srgb, " + it.color + " 16%, var(--surface))";
+      li.style.background = "color-mix(in srgb, " + it.color + " 16%, var(--card))";
     }
 
     var row1 = document.createElement("div"); row1.className = "row1";
@@ -1504,14 +1512,35 @@
   var THEME_ORDER = ["warm", "ocean", "forest", "grape", "mono", "contrast"];
   var THEME_MODES = ["auto", "light", "dark"];
   var THEME_KEY = "backlog.theme"; // per-browser cache, so the page opens in the right colors
-  var theme = { palette: "warm", mode: "auto" };
+  var theme = { palette: "warm", mode: "auto", custom: { light: {}, dark: {} } };
   var themeProps = {};
   THEME_ORDER.forEach(function (k) { ["light", "dark"].forEach(function (m) { Object.keys(THEMES[k][m]).forEach(function (t) { themeProps[t] = true; }); }); });
+  ["bg", "surface", "surface-2", "line", "line-strong", "card", "card-tint"].forEach(function (t) { themeProps[t] = true; });
+  function hexOr(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : ""; }
+  // { light: { bg, card }, dark: { bg, card } } — only valid #rrggbb survive
+  function validCustom(c) {
+    var out = { light: {}, dark: {} };
+    ["light", "dark"].forEach(function (m) {
+      var src = c && typeof c === "object" && c[m] && typeof c[m] === "object" ? c[m] : {};
+      ["bg", "card"].forEach(function (k) { var v = hexOr(src[k]); if (v) out[m][k] = v; });
+    });
+    return out;
+  }
   function validTheme(t) {
     return {
       palette: t && THEMES.hasOwnProperty(t.palette) ? t.palette : "warm",
-      mode: t && THEME_MODES.indexOf(t.mode) >= 0 ? t.mode : "auto"
+      mode: t && THEME_MODES.indexOf(t.mode) >= 0 ? t.mode : "auto",
+      custom: validCustom(t && t.custom)
     };
+  }
+  function sameTheme(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  // WCAG contrast of two #rrggbb colors
+  function contrast(a, b) {
+    function lum(h) {
+      return [1, 3, 5].map(function (i) { var v = parseInt(h.slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); })
+        .reduce(function (acc, v, i) { return acc + v * [0.2126, 0.7152, 0.0722][i]; }, 0);
+    }
+    var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
   }
   function effectiveDark() {
     if (theme.mode === "dark") return true;
@@ -1526,17 +1555,66 @@
     root.classList.toggle("mode-light", theme.mode === "light");
     root.classList.toggle("mode-dark", theme.mode === "dark");
     Object.keys(themeProps).forEach(function (t) { root.style.removeProperty("--" + t); });
+    var dark = effectiveDark();
     if (theme.palette !== "warm") { // Warm is the stylesheet's own colors
-      var set = THEMES[theme.palette][effectiveDark() ? "dark" : "light"];
+      var set = THEMES[theme.palette][dark ? "dark" : "light"];
       Object.keys(set).forEach(function (t) { root.style.setProperty("--" + t, set[t]); });
+    }
+    applyCustom(theme.custom[dark ? "dark" : "light"]);
+  }
+  // A custom background also shades every panel from it — tiles, inputs, menus
+  // and (unless set separately) cards — plus the lane panels and borders, so
+  // the whole board follows one color. A custom card color keeps only a light
+  // lane tint.
+  function applyCustom(c) {
+    var root = document.documentElement;
+    if (c.bg) {
+      root.style.setProperty("--bg", c.bg);
+      // panels: a step lighter than the page in dark mode, near-white in light mode
+      root.style.setProperty("--surface", effectiveDark()
+        ? "color-mix(in srgb, " + c.bg + ", var(--fg) 3%)"
+        : "color-mix(in srgb, " + c.bg + ", #ffffff 70%)");
+      root.style.setProperty("--surface-2", "color-mix(in srgb, " + c.bg + ", var(--fg) 6%)");
+      root.style.setProperty("--line", "color-mix(in srgb, " + c.bg + ", var(--fg) 13%)");
+      root.style.setProperty("--line-strong", "color-mix(in srgb, " + c.bg + ", var(--fg) 22%)");
+    }
+    if (c.card) {
+      root.style.setProperty("--card", c.card);
+      root.style.setProperty("--card-tint", "12%");
     }
   }
   function cacheTheme() { try { window.localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch (e) {} }
   function setTheme(change) {
-    var next = validTheme({ palette: change.palette || theme.palette, mode: change.mode || theme.mode });
-    if (next.palette === theme.palette && next.mode === theme.mode) return;
+    var next = validTheme({ palette: change.palette || theme.palette, mode: change.mode || theme.mode, custom: change.custom || theme.custom });
+    if (sameTheme(next, theme)) return;
     theme = next; applyTheme(); cacheTheme(); renderThemeMenu(); render();
-    if (db && state.canWrite) db.doc("meta/theme").set({ palette: theme.palette, mode: theme.mode, updatedAt: today() }).catch(function (e) { onWriteErr(e); });
+    if (db && state.canWrite) db.doc("meta/theme").set({ palette: theme.palette, mode: theme.mode, custom: theme.custom, updatedAt: today() }).catch(function (e) { onWriteErr(e); });
+  }
+  // change one custom color for the mode now showing ("" resets it)
+  function setCustom(key, value) {
+    var m = effectiveDark() ? "dark" : "light";
+    var c = JSON.parse(JSON.stringify(theme.custom));
+    if (value) c[m][key] = value; else delete c[m][key];
+    setTheme({ custom: c });
+  }
+  function tokenHex(t) {
+    var v = ""; try { v = getComputedStyle(document.documentElement).getPropertyValue("--" + t).trim(); } catch (e) {}
+    return hexOr(v);
+  }
+  // The color a token actually paints, as #rrggbb — also for tokens computed
+  // with color-mix() (which the browser reports as rgb() or color(srgb …)).
+  function paintedHex(t) {
+    var direct = tokenHex(t); if (direct) return direct;
+    var probe = document.createElement("span"); probe.style.cssText = "position:absolute;width:0;height:0;overflow:hidden";
+    probe.style.backgroundColor = "var(--" + t + ")";
+    document.body.appendChild(probe);
+    var c = ""; try { c = getComputedStyle(probe).backgroundColor; } catch (e) {}
+    probe.remove();
+    var n = null, m;
+    if ((m = c.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/))) n = [+m[1], +m[2], +m[3]];
+    else if ((m = c.match(/^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/))) n = [m[1] * 255, m[2] * 255, m[3] * 255];
+    if (!n) return "";
+    return "#" + n.map(function (x) { var h = Math.max(0, Math.min(255, Math.round(x))).toString(16); return h.length < 2 ? "0" + h : h; }).join("");
   }
   function renderThemeMenu() {
     var menu = document.getElementById("themeMenu"); if (!menu) return;
@@ -1564,6 +1642,34 @@
       modes.appendChild(b);
     });
     menu.appendChild(modes);
+    var modeName = dark ? "dark" : "light";
+    var h3 = document.createElement("div"); h3.className = "ph"; h3.textContent = "Custom colors · " + modeName + " mode"; menu.appendChild(h3);
+    var mine = theme.custom[modeName];
+    var fg = tokenHex("fg") || (dark ? "#f1ece2" : "#211d17");
+    [["bg", "Background", "bg"], ["card", "Cards", "card"]].forEach(function (row) {
+      var key = row[0];
+      var r = document.createElement("div"); r.className = "th-row";
+      var id = "thc-" + key;
+      var lab = document.createElement("label"); lab.htmlFor = id; lab.textContent = row[1];
+      var inp = document.createElement("input"); inp.type = "color"; inp.id = id; inp.dataset.custom = key;
+      inp.value = mine[key] || paintedHex(row[2]) || (dark ? "#201c16" : "#fffefb");
+      var warn = document.createElement("div"); warn.className = "th-warn"; warn.hidden = true;
+      function check(v) {
+        var low = contrast(v, fg) < 4.5;
+        warn.hidden = !low;
+        warn.textContent = low ? "Text may be hard to read on this color — try a " + (dark ? "darker" : "lighter") + " shade, or switch to " + (dark ? "Light" : "Dark") + " mode." : "";
+      }
+      // live preview while picking; saved when the picker closes
+      inp.addEventListener("input", function () { applyCustom(key === "bg" ? { bg: inp.value } : { card: inp.value }); check(inp.value); });
+      inp.addEventListener("change", function () { setCustom(key, hexOr(inp.value)); var again = document.getElementById(id); if (again) again.focus(); });
+      var rs = document.createElement("button"); rs.type = "button"; rs.className = "th-reset"; rs.textContent = "Reset";
+      rs.setAttribute("aria-label", "Reset " + row[1].toLowerCase() + " color"); rs.disabled = !mine[key];
+      rs.addEventListener("click", function () { setCustom(key, ""); });
+      r.appendChild(lab); r.appendChild(inp); r.appendChild(rs);
+      menu.appendChild(r);
+      if (mine[key]) check(mine[key]);
+      menu.appendChild(warn);
+    });
     var note = document.createElement("div"); note.className = "th-note";
     note.textContent = state.canWrite ? "Saved on this board — it looks the same on every device." : "This board is read-only for you, so the change isn’t saved.";
     menu.appendChild(note);
@@ -1648,7 +1754,7 @@
         var d = doc && doc.data ? doc.data() : null;
         if (!d) return; // never chosen: keep the default / cached look
         var t = validTheme(d);
-        if (t.palette === theme.palette && t.mode === theme.mode) return;
+        if (sameTheme(t, theme)) return;
         theme = t; applyTheme(); cacheTheme(); renderThemeMenu(); renderRemote();
       }, function () {});
       db.doc("meta/projects").onSnapshot(function (doc) {
