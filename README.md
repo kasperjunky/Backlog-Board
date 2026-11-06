@@ -93,6 +93,11 @@ shows a bar at the top; tell Claude *"start my backlog pick"*. **Clear** un-pick
 
 **The toolbar.**
 
+- **🎨 Theme ▾** — recolor the whole board: *Warm* (the default), *Ocean*, *Forest*,
+  *Grape*, *Mono* or *High contrast*, plus **Auto / Light / Dark** (Auto follows your system
+  or Claude's own light/dark setting). The choice is saved on the board, so it looks the
+  same on every device and for anyone you share it with. Every palette meets contrast
+  guidelines in both light and dark.
 - **Projects ▾** — jump to another project's board. The list is refreshed whenever you open
   the backlog or say *"sync projects"*.
 - **Search** — matches card names and notes.

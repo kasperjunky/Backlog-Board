@@ -14,6 +14,7 @@
     --line-strong: #d4ccbc;
     --accent: #4b45c6;
     --accent-fg: #ffffff;
+    --urgent-fg: #ffffff;
 
     --urgent: #cf4636;
     --urgent-soft: #fbe9e5;
@@ -42,6 +43,7 @@
       --line-strong: #433c30;
       --accent: #938eef;
       --accent-fg: #15120d;
+      --urgent-fg: #15120d;
       --urgent: #ef8a7b; --urgent-soft: #35211d; --urgent-line: #5a332b;
       --important: #83b2e6; --important-soft: #182533; --important-line: #2b4059;
       --nice: #72c7a1; --nice-soft: #15271f; --nice-line: #27483a;
@@ -60,6 +62,52 @@
     --line-strong: #433c30;
     --accent: #938eef;
     --accent-fg: #15120d;
+    --urgent-fg: #15120d;
+    --urgent: #ef8a7b; --urgent-soft: #35211d; --urgent-line: #5a332b;
+    --important: #83b2e6; --important-soft: #182533; --important-line: #2b4059;
+    --nice: #72c7a1; --nice-soft: #15271f; --nice-line: #27483a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+
+  /* Light / Dark picked in the board's Theme menu: placed after the viewer's
+     theme rules so the board's own choice wins; "Auto" sets neither class. */
+  :root.mode-light {
+    --bg: #f6f4ee;
+    --surface: #fffefb;
+    --surface-2: #f0ede4;
+    --fg: #211d17;
+    --muted: #6f675a;
+    --gold: #a87400;
+    --line: #e4ded2;
+    --line-strong: #d4ccbc;
+    --accent: #4b45c6;
+    --accent-fg: #ffffff;
+    --urgent-fg: #ffffff;
+    --urgent: #cf4636;
+    --urgent-soft: #fbe9e5;
+    --urgent-line: #f0c3b9;
+    --important: #2f6aa8;
+    --important-soft: #e6eef7;
+    --important-line: #bcd2ea;
+    --nice: #2d8a66;
+    --nice-soft: #e2f1ea;
+    --nice-line: #b9ddcb;
+    --shadow: 0 1px 2px rgba(33,29,23,.06), 0 4px 14px rgba(33,29,23,.07);
+    color-scheme: light;
+  }
+  :root.mode-dark {
+    --bg: #15120d;
+    --surface: #201c16;
+    --surface-2: #2a251d;
+    --fg: #f1ece2;
+    --muted: #a79d8c;
+    --gold: #e0b015;
+    --line: #322c23;
+    --line-strong: #433c30;
+    --accent: #938eef;
+    --accent-fg: #15120d;
+    --urgent-fg: #15120d;
     --urgent: #ef8a7b; --urgent-soft: #35211d; --urgent-line: #5a332b;
     --important: #83b2e6; --important-soft: #182533; --important-line: #2b4059;
     --nice: #72c7a1; --nice-soft: #15271f; --nice-line: #27483a;
@@ -231,7 +279,7 @@
   .iconbtn.danger:hover { color: var(--urgent); border-color: var(--urgent-line); }
   .confirm { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .confirm button { font: inherit; font-size: 12px; border-radius: 6px; padding: 2px 8px; cursor: pointer; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); }
-  .confirm button.yes { background: var(--urgent); border-color: var(--urgent); color: #fff; }
+  .confirm button.yes { background: var(--urgent); border-color: var(--urgent); color: var(--urgent-fg); }
 
   .worklane { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 1px; }
   .card .linkbtn.on { color: var(--accent); }
@@ -240,7 +288,7 @@
   .card .duechip { font: inherit; font-size: 12px; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 7px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
   .card .duechip:hover { border-color: var(--accent); }
   .card .duechip.soon { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
-  .card .duechip.over { color: var(--accent-fg); background: var(--urgent); border-color: var(--urgent); }
+  .card .duechip.over { color: var(--urgent-fg); background: var(--urgent); border-color: var(--urgent); }
   .card .dueadd { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px dashed var(--line-strong); border-radius: 7px; padding: 3px 8px; cursor: pointer; }
   .card .dueadd:hover { color: var(--fg); border-color: var(--accent); }
   .card .dueedit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -251,7 +299,7 @@
   .arc-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
   .arc-tools button { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 11px; cursor: pointer; }
   .arc-tools button:hover { border-color: var(--accent); }
-  .arc-tools button.yes { background: var(--urgent); border-color: var(--urgent); color: #fff; }
+  .arc-tools button.yes { background: var(--urgent); border-color: var(--urgent); color: var(--urgent-fg); }
   .card .linkedit { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
   .card .linkedit input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
   .card .linkedit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -304,6 +352,18 @@
   .projmenu .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); flex: none; }
   .projmenu .cur .pdot { background: var(--accent); }
   .projmenu .pname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thememenu { min-width: 250px; max-height: none; }
+  .thememenu .th-opt { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border: none; border-radius: 7px; background: transparent; color: var(--fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  .thememenu .th-opt:hover { background: var(--surface-2); }
+  .thememenu .th-opt[aria-checked="true"] { font-weight: 700; }
+  .thememenu .th-sw { display: inline-flex; gap: 3px; flex: none; }
+  .thememenu .th-sw i { width: 11px; height: 11px; border-radius: 50%; display: block; border: 1px solid rgba(128,128,128,.35); }
+  .thememenu .th-name { flex: 1 1 auto; }
+  .thememenu .th-check { color: var(--accent); flex: none; width: 1em; text-align: center; }
+  .thememenu .th-modes { display: flex; gap: 4px; padding: 4px 8px 6px; }
+  .thememenu .th-modes button { flex: 1; font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 6px; cursor: pointer; }
+  .thememenu .th-modes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .thememenu .th-note { font-size: 11.5px; color: var(--muted); padding: 2px 8px 6px; line-height: 1.4; }
   .projmenu .pempty { font-size: 12px; color: var(--muted); padding: 6px 8px; line-height: 1.45; }
 
   .exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 50; }
@@ -378,6 +438,10 @@
       <button type="button" class="projbtn" id="projBtn" aria-haspopup="true" aria-expanded="false" title="Jump to another project’s backlog">Projects ▾</button>
       <div class="projmenu" id="projMenu" hidden></div>
     </div>
+    <div class="projwrap themewrap">
+      <button type="button" class="projbtn" id="themeBtn" aria-haspopup="true" aria-expanded="false" title="Change the board’s colors">🎨 Theme ▾</button>
+      <div class="projmenu thememenu" id="themeMenu" hidden></div>
+    </div>
     <input id="searchInput" class="search" type="search" placeholder="Search name or note…" aria-label="Search backlog">
     <div class="filtergroup" id="effortFilter">
       <span class="fglabel">Effort</span>
@@ -432,6 +496,12 @@
   var EFFORTS = ["S", "M", "L", "XL"];
   var PRIORITY_LABEL = { urgent: "Urgent", important: "Important", nice: "Nice to have" };
   var PRIORITY_HEX = { urgent: "#cf4636", important: "#2f6aa8", nice: "#2d8a66" };
+  // the lane's color in the active theme (for the card-color dot and picker)
+  function laneHex(pr) {
+    var v = "";
+    try { v = getComputedStyle(document.documentElement).getPropertyValue("--" + pr).trim(); } catch (e) { v = ""; }
+    return /^#[0-9a-f]{6}$/i.test(v) ? v : (PRIORITY_HEX[pr] || "#888888");
+  }
   var COLOR_PRESETS = ["#cf4636", "#d98324", "#e0b015", "#2d8a66", "#2aa198", "#2f6aa8", "#4b45c6", "#8a5cc4", "#c0497e", "#6b7280"];
   var EFFORT_WEIGHT = { S: 1, M: 2, L: 3, XL: 4 };
   var state = { items: [], ready: false, canWrite: true, handoffId: null, projects: [], currentKey: null };
@@ -735,7 +805,7 @@
     // actions
     var actions = document.createElement("div"); actions.className = "actions";
     var colorbtn = document.createElement("button"); colorbtn.className = "iconbtn colorbtn"; colorbtn.type = "button"; colorbtn.title = "Card color"; colorbtn.setAttribute("aria-label", "Card color");
-    var cdot = document.createElement("span"); cdot.className = "cdot"; cdot.style.background = it.color || PRIORITY_HEX[it.priority] || "var(--muted)";
+    var cdot = document.createElement("span"); cdot.className = "cdot"; cdot.style.background = it.color || "var(--" + it.priority + ")";
     colorbtn.appendChild(cdot);
     colorbtn.addEventListener("click", function () { openPalette(li, it); });
     var linkbtn = document.createElement("button"); linkbtn.className = "iconbtn linkbtn" + (it.link ? " on" : ""); linkbtn.type = "button"; linkbtn.title = it.link ? "Edit link" : "Attach a PR / branch / commit link"; linkbtn.textContent = "🔗"; linkbtn.setAttribute("aria-label", linkbtn.title);
@@ -891,7 +961,7 @@
       p.appendChild(s);
     });
     var custom = document.createElement("input"); custom.type = "color"; custom.title = "Custom color";
-    custom.value = it.color || PRIORITY_HEX[it.priority] || "#888888";
+    custom.value = it.color || laneHex(it.priority);
     custom.addEventListener("change", function () { patch(it.id, { color: custom.value }); });
     p.appendChild(custom);
     var reset = document.createElement("button"); reset.type = "button"; reset.className = "reset"; reset.textContent = "Default";
@@ -1429,6 +1499,97 @@
     }
   })();
 
+  // ---- theme: palette + Light/Dark/Auto, saved on the board (meta/theme) ----
+  var THEMES = {"warm":{"name":"Warm","light":{"accent":"#4b45c6","accent-fg":"#ffffff","urgent":"#cf4636","urgent-soft":"#fbe9e5","urgent-line":"#f0c3b9","urgent-fg":"#ffffff","important":"#2f6aa8","important-soft":"#e6eef7","important-line":"#bcd2ea","nice":"#2d8a66","nice-soft":"#e2f1ea","nice-line":"#b9ddcb"},"dark":{"accent":"#938eef","accent-fg":"#15120d","urgent":"#ef8a7b","urgent-soft":"#35211d","urgent-line":"#5a332b","urgent-fg":"#15120d","important":"#83b2e6","important-soft":"#182533","important-line":"#2b4059","nice":"#72c7a1","nice-soft":"#15271f","nice-line":"#27483a"}},"ocean":{"name":"Ocean","light":{"accent":"#0b6690","accent-fg":"#ffffff","urgent":"#c8402f","urgent-soft":"#fbe8e4","urgent-line":"#efc0b7","urgent-fg":"#ffffff","important":"#2456b8","important-soft":"#e5ecfa","important-line":"#b9caee","nice":"#0f7c72","nice-soft":"#def3f0","nice-line":"#a9dcd5"},"dark":{"accent":"#5cc3f0","accent-fg":"#0c1a22","urgent":"#f28f80","urgent-soft":"#36211e","urgent-line":"#5c342d","urgent-fg":"#1a0f0c","important":"#8fa9f5","important-soft":"#19223a","important-line":"#2c3c66","nice":"#5fd0c2","nice-soft":"#122a27","nice-line":"#22504a"}},"forest":{"name":"Forest","light":{"accent":"#2e6b30","accent-fg":"#ffffff","urgent":"#b04126","urgent-soft":"#f8e6e0","urgent-line":"#e8bfb3","urgent-fg":"#ffffff","important":"#8a5f12","important-soft":"#f5ecdb","important-line":"#e2cfa6","nice":"#3b7a56","nice-soft":"#e2f0e7","nice-line":"#b5d8c3"},"dark":{"accent":"#86cf88","accent-fg":"#0f1a10","urgent":"#ec9479","urgent-soft":"#35221b","urgent-line":"#5b382c","urgent-fg":"#1a0f0c","important":"#e0bd6a","important-soft":"#2e2614","important-line":"#55462a","nice":"#82c9a2","nice-soft":"#16281e","nice-line":"#2a4a38"}},"grape":{"name":"Grape","light":{"accent":"#7339ad","accent-fg":"#ffffff","urgent":"#b8306f","urgent-soft":"#f9e4ee","urgent-line":"#ecbbd1","urgent-fg":"#ffffff","important":"#4f45b8","important-soft":"#e9e7f8","important-line":"#c3bdeb","nice":"#22807f","nice-soft":"#dff1f1","nice-line":"#acd9d8"},"dark":{"accent":"#c39af0","accent-fg":"#1a1124","urgent":"#f08bbd","urgent-soft":"#361d2a","urgent-line":"#5c3046","urgent-fg":"#1f0c16","important":"#a59cf2","important-soft":"#1f1d36","important-line":"#38345e","nice":"#6fcfcf","nice-soft":"#122a2a","nice-line":"#245050"}},"mono":{"name":"Mono","light":{"accent":"#2b2b2b","accent-fg":"#ffffff","urgent":"#1f1f1f","urgent-soft":"#ececec","urgent-line":"#c9c9c9","urgent-fg":"#ffffff","important":"#5c5c5c","important-soft":"#f2f2f2","important-line":"#d6d6d6","nice":"#828282","nice-soft":"#f6f6f6","nice-line":"#e1e1e1","bg":"#f5f5f5","surface":"#ffffff","surface-2":"#eeeeee","muted":"#666666","line":"#e0e0e0","line-strong":"#cccccc"},"dark":{"accent":"#e8e8e8","accent-fg":"#111111","urgent":"#f2f2f2","urgent-soft":"#2e2e2e","urgent-line":"#4a4a4a","urgent-fg":"#111111","important":"#b5b5b5","important-soft":"#262626","important-line":"#3d3d3d","nice":"#858585","nice-soft":"#202020","nice-line":"#333333","bg":"#121212","surface":"#1c1c1c","surface-2":"#242424","muted":"#a3a3a3","line":"#2e2e2e","line-strong":"#3d3d3d"}},"contrast":{"name":"High contrast","light":{"accent":"#1a1aa8","accent-fg":"#ffffff","urgent":"#a30000","urgent-soft":"#ffe5e5","urgent-line":"#d98c8c","urgent-fg":"#ffffff","important":"#00478f","important-soft":"#e0eeff","important-line":"#7fa8d6","nice":"#00632a","nice-soft":"#dff5e8","nice-line":"#7fbf99","bg":"#ffffff","surface":"#ffffff","surface-2":"#f2f2f2","fg":"#000000","muted":"#3d3d3d","line":"#8c8c8c","line-strong":"#595959"},"dark":{"accent":"#a8c8ff","accent-fg":"#000000","urgent":"#ff9b9b","urgent-soft":"#3a0f0f","urgent-line":"#a34d4d","urgent-fg":"#000000","important":"#8fd0ff","important-soft":"#0b2540","important-line":"#4d7fa8","nice":"#7ff0a8","nice-soft":"#0b2e18","nice-line":"#4da86e","bg":"#000000","surface":"#0d0d0d","surface-2":"#1a1a1a","fg":"#ffffff","muted":"#d0d0d0","line":"#737373","line-strong":"#a6a6a6"}}};
+  var THEME_ORDER = ["warm", "ocean", "forest", "grape", "mono", "contrast"];
+  var THEME_MODES = ["auto", "light", "dark"];
+  var THEME_KEY = "backlog.theme"; // per-browser cache, so the page opens in the right colors
+  var theme = { palette: "warm", mode: "auto" };
+  var themeProps = {};
+  THEME_ORDER.forEach(function (k) { ["light", "dark"].forEach(function (m) { Object.keys(THEMES[k][m]).forEach(function (t) { themeProps[t] = true; }); }); });
+  function validTheme(t) {
+    return {
+      palette: t && THEMES.hasOwnProperty(t.palette) ? t.palette : "warm",
+      mode: t && THEME_MODES.indexOf(t.mode) >= 0 ? t.mode : "auto"
+    };
+  }
+  function effectiveDark() {
+    if (theme.mode === "dark") return true;
+    if (theme.mode === "light") return false;
+    var dt = document.documentElement.getAttribute("data-theme");
+    if (dt === "dark") return true;
+    if (dt === "light") return false;
+    try { return window.matchMedia("(prefers-color-scheme: dark)").matches; } catch (e) { return false; }
+  }
+  function applyTheme() {
+    var root = document.documentElement;
+    root.classList.toggle("mode-light", theme.mode === "light");
+    root.classList.toggle("mode-dark", theme.mode === "dark");
+    Object.keys(themeProps).forEach(function (t) { root.style.removeProperty("--" + t); });
+    if (theme.palette !== "warm") { // Warm is the stylesheet's own colors
+      var set = THEMES[theme.palette][effectiveDark() ? "dark" : "light"];
+      Object.keys(set).forEach(function (t) { root.style.setProperty("--" + t, set[t]); });
+    }
+  }
+  function cacheTheme() { try { window.localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch (e) {} }
+  function setTheme(change) {
+    var next = validTheme({ palette: change.palette || theme.palette, mode: change.mode || theme.mode });
+    if (next.palette === theme.palette && next.mode === theme.mode) return;
+    theme = next; applyTheme(); cacheTheme(); renderThemeMenu(); render();
+    if (db && state.canWrite) db.doc("meta/theme").set({ palette: theme.palette, mode: theme.mode, updatedAt: today() }).catch(function (e) { onWriteErr(e); });
+  }
+  function renderThemeMenu() {
+    var menu = document.getElementById("themeMenu"); if (!menu) return;
+    var dark = effectiveDark();
+    menu.innerHTML = "";
+    var h = document.createElement("div"); h.className = "ph"; h.textContent = "Colors"; menu.appendChild(h);
+    THEME_ORDER.forEach(function (k) {
+      var pal = THEMES[k][dark ? "dark" : "light"];
+      var b = document.createElement("button"); b.type = "button"; b.className = "th-opt"; b.dataset.palette = k;
+      b.setAttribute("role", "menuitemradio"); b.setAttribute("aria-checked", theme.palette === k ? "true" : "false");
+      var sw = document.createElement("span"); sw.className = "th-sw"; sw.setAttribute("aria-hidden", "true");
+      ["urgent", "important", "nice", "accent"].forEach(function (t) { var i = document.createElement("i"); i.style.background = pal[t]; sw.appendChild(i); });
+      var nm = document.createElement("span"); nm.className = "th-name"; nm.textContent = THEMES[k].name + (k === "warm" ? " (default)" : "");
+      var ck = document.createElement("span"); ck.className = "th-check"; ck.setAttribute("aria-hidden", "true"); ck.textContent = theme.palette === k ? "✓" : "";
+      b.appendChild(sw); b.appendChild(nm); b.appendChild(ck);
+      b.addEventListener("click", function () { setTheme({ palette: k }); var again = document.querySelector('#themeMenu [data-palette="' + k + '"]'); if (again) again.focus(); });
+      menu.appendChild(b);
+    });
+    var h2 = document.createElement("div"); h2.className = "ph"; h2.textContent = "Mode"; menu.appendChild(h2);
+    var modes = document.createElement("div"); modes.className = "th-modes"; modes.setAttribute("role", "group"); modes.setAttribute("aria-label", "Light or dark");
+    [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].forEach(function (m) {
+      var b = document.createElement("button"); b.type = "button"; b.dataset.mode = m[0]; b.textContent = m[1];
+      b.setAttribute("aria-pressed", theme.mode === m[0] ? "true" : "false");
+      b.addEventListener("click", function () { setTheme({ mode: m[0] }); var again = document.querySelector('#themeMenu [data-mode="' + m[0] + '"]'); if (again) again.focus(); });
+      modes.appendChild(b);
+    });
+    menu.appendChild(modes);
+    var note = document.createElement("div"); note.className = "th-note";
+    note.textContent = state.canWrite ? "Saved on this board — it looks the same on every device." : "This board is read-only for you, so the change isn’t saved.";
+    menu.appendChild(note);
+  }
+  (function initTheme() {
+    try { theme = validTheme(JSON.parse(window.localStorage.getItem(THEME_KEY) || "null")); } catch (e) { theme = validTheme(null); }
+    applyTheme();
+    // follow the system / the viewer's own light-dark switch while on Auto
+    try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (theme.mode === "auto") { applyTheme(); renderThemeMenu(); } }); } catch (e) {}
+    try { new MutationObserver(function () { if (theme.mode === "auto") { applyTheme(); renderThemeMenu(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] }); } catch (e) {}
+    var btn = document.getElementById("themeBtn"), menu = document.getElementById("themeMenu");
+    if (!btn || !menu) return;
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var willOpen = menu.hidden;
+      if (willOpen) renderThemeMenu();
+      menu.hidden = !willOpen; btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function (ev) {
+      if (!menu.hidden && ev.target !== btn && !menu.contains(ev.target) && document.contains(ev.target)) { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && !menu.hidden) { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.focus(); }
+    });
+  })();
+
   render(); // first frame (empty skeleton)
   renderProjectMenu(); // empty until the meta/projects doc loads
 
@@ -1483,6 +1644,13 @@
         if (!suppress) renderRemote();
       }, function () {});
       // the project switcher's list (written by Claude from the backlog files)
+      db.doc("meta/theme").onSnapshot(function (doc) {
+        var d = doc && doc.data ? doc.data() : null;
+        if (!d) return; // never chosen: keep the default / cached look
+        var t = validTheme(d);
+        if (t.palette === theme.palette && t.mode === theme.mode) return;
+        theme = t; applyTheme(); cacheTheme(); renderThemeMenu(); renderRemote();
+      }, function () {});
       db.doc("meta/projects").onSnapshot(function (doc) {
         var d = doc && doc.data ? doc.data() : null;
         state.projects = d && Array.isArray(d.projects) ? d.projects : [];

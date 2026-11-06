@@ -197,6 +197,66 @@
     ok(tools.hidden, "tools hide when nothing qualifies");
   });
 
+  // ---- themes ----
+  var rootVar = function (t) { return document.documentElement.style.getPropertyValue("--" + t).trim(); };
+  async function openTheme() { var m = $("#themeMenu"); if (m.hidden) $("#themeBtn").click(); await tick(); return m; }
+  async function pick(sel) { var m = await openTheme(); $(sel, m).click(); await tick(); }
+  async function themeReset() { await pick('[data-palette="warm"]'); await pick('[data-mode="auto"]'); $("#themeBtn").click(); await tick(); }
+
+  await test("the theme menu lists six palettes, Warm by default", async function () {
+    var m = await openTheme();
+    eq($$(".th-opt", m).map(function (b) { return b.dataset.palette; }), ["warm", "ocean", "forest", "grape", "mono", "contrast"]);
+    eq($('[aria-checked="true"]', m).dataset.palette, "warm", "checked");
+    eq(rootVar("accent"), "", "Warm uses the stylesheet's own colors");
+    eq($('[data-mode="auto"]', m).getAttribute("aria-pressed"), "true", "mode");
+    $("#themeBtn").click(); await tick();
+  });
+  await test("picking a palette recolors the board and saves it on the board", async function () {
+    await pick('[data-palette="ocean"]');
+    var dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    eq(rootVar("accent"), dark ? "#5cc3f0" : "#0b6690", "ocean accent");
+    eq(rootVar("urgent"), dark ? "#f28f80" : "#c8402f", "ocean urgent");
+    var w = window.__writes.filter(function (x) { return x[1] === "meta/theme"; });
+    eq(w.length, 1, "one write"); eq([w[0][0], w[0][2].palette, w[0][2].mode], ["set", "ocean", "auto"]);
+    var cached = null; try { cached = JSON.parse(localStorage.getItem("backlog.theme")); } catch (e) { cached = "unavailable"; }
+    ok(cached === "unavailable" || (cached && cached.palette === "ocean"), "cached: " + JSON.stringify(cached));
+    eq($('#themeMenu [aria-checked="true"]').dataset.palette, "ocean", "menu shows the choice");
+    await themeReset();
+  });
+  await test("Light and Dark override the system; Auto follows it", async function () {
+    await pick('[data-palette="forest"]');
+    await pick('[data-mode="dark"]');
+    var root = document.documentElement;
+    ok(root.classList.contains("mode-dark") && !root.classList.contains("mode-light"), "dark class");
+    eq(rootVar("accent"), "#86cf88", "forest dark accent");
+    eq(getComputedStyle(root).getPropertyValue("--bg").trim(), "#15120d", "dark background");
+    await pick('[data-mode="light"]');
+    ok(root.classList.contains("mode-light") && !root.classList.contains("mode-dark"), "light class");
+    eq(rootVar("accent"), "#2e6b30", "forest light accent");
+    eq(getComputedStyle(root).getPropertyValue("--bg").trim(), "#f6f4ee", "light background");
+    await pick('[data-mode="auto"]');
+    ok(!root.classList.contains("mode-light") && !root.classList.contains("mode-dark"), "no override on Auto");
+    await themeReset();
+  });
+  await test("a theme chosen on another device is applied; a bad one is ignored", async function () {
+    window.__remote("meta/theme", { palette: "grape", mode: "light" }); await tick();
+    eq(rootVar("accent"), "#7339ad", "grape light accent");
+    ok(document.documentElement.classList.contains("mode-light"), "light mode from the board");
+    window.__remote("meta/theme", { palette: "neon<script>", mode: "sideways" }); await tick();
+    eq(rootVar("accent"), "", "unknown palette falls back to Warm");
+    ok(!document.documentElement.classList.contains("mode-light"), "unknown mode falls back to Auto");
+    await themeReset();
+  });
+  await test("text on Urgent buttons uses the palette's own readable color", async function () {
+    await pick('[data-palette="mono"]'); await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
+    $("#archive").open = true;
+    $(".arc-item .iconbtn.danger").click(); await tick();
+    var yes = $(".arc-item .confirm .yes");
+    eq(getComputedStyle(yes).color, "rgb(17, 17, 17)", "dark text on Mono's light urgent");
+    $(".arc-item .confirm button:not(.yes)").click(); await tick();
+    await themeReset();
+  });
+
   // ---- accessibility ----
   await test("every card and archive button has an accessible name", async function () {
     var bad = $$(".card button, .arc-item button").filter(function (b) {
