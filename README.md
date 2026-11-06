@@ -134,20 +134,26 @@ sync*. It disappears once they're synced.
 
 ## Install
 
-At the prompt of a terminal Claude Code session:
+Installing is two steps: add this repository as a plugin marketplace, then install the
+`backlog` plugin from it (the marketplace is called `backlog-board`). From a shell:
 
 ```
-/plugin install backlog --marketplace kasperjunky/Backlog-Board
+claude plugin marketplace add kasperjunky/Backlog-Board
+claude plugin install backlog@backlog-board
 ```
 
-From a shell:
+Or the same two commands at the prompt of a terminal Claude Code session:
 
 ```
-claude plugin install backlog --marketplace kasperjunky/Backlog-Board
+/plugin marketplace add kasperjunky/Backlog-Board
+/plugin install backlog@backlog-board
 ```
 
 In the desktop app (where `/plugin` doesn't run): click **+** next to the prompt box →
 **Plugins** → **Add marketplace** with `kasperjunky/Backlog-Board` → **Add plugin**.
+
+Then **start a new Claude Code session** in any project — the plugin loads when a session
+starts. Say *"save to backlog: try the backlog board"*, then *"show backlog"*.
 
 To update later, run `claude plugin update backlog` from a shell.
 
