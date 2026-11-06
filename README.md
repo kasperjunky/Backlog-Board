@@ -27,6 +27,100 @@ Kanban board of everything you've saved for that project.
   (`~/.claude/backlogs/`), never inside the repo you're working in. Each project gets
   its own board.
 
+## Using the board
+
+### Quick start
+
+1. **Install the plugin** (see [Install](#install)) and open Claude Code in your project.
+2. **Capture something.** Say *"save to backlog: add dark mode, it's the top user request"*,
+   or type `/backlog add Add dark mode !important`.
+3. **Open the board.** Say *"show backlog"*. The first time, Claude creates a private board
+   for this project and gives you its link; after that it opens the same board.
+4. **Hand a card back.** On the board, click **▶ Work on this** on a card, then tell Claude
+   *"start my backlog pick"*. When Claude finishes, the card moves to the Archive with a
+   ✓ line saying what was done.
+
+### What to say to Claude
+
+| Say… | What happens |
+| --- | --- |
+| *"save to backlog: …"*, *"later"*, *"let's do that another time"* | Captures a task (Claude fills in priority, value, effort and the reason you gave) and syncs it to the board. Near-duplicates are skipped or flagged. |
+| *"show backlog"* / *"open the board"* | Opens the board, bringing in anything not on it yet. |
+| *"start my backlog pick"* (the board says *"start my pick"* — either works) | Claude reads the card you picked, says which one it's starting, and gets to work. |
+| *"work on the dark mode item"* | Same, for a card you name instead of picking. |
+| *"sync projects"* / *"update the project switcher"* | Refreshes the **Projects ▾** list from all your project boards. |
+
+### Slash commands
+
+| Command | What it does |
+| --- | --- |
+| `/backlog` | Shows your board's link and anything not on it yet. |
+| `/backlog add <task> [!urgent \| !important \| !nice]` | Captures right away, without asking Claude (default lane: Important). |
+| `/backlog inbox` | Lists captures that haven't reached the board yet. |
+| `/backlog help` | Lists the commands. |
+
+### A tour of the board
+
+**Lanes.** Cards sit in three lanes — **Urgent**, **Important**, **Nice to have** — plus an
+**Archive** at the bottom for finished cards. Click the **+** next to a lane's name to add a
+card there (Enter adds it and keeps the box open for another; Esc closes it).
+
+**Editing a card.** Everything on a card is clickable:
+
+- **Name** and **"Why it matters" note** — click to edit, Enter to save.
+- **Value** (the five dots) — how worthwhile it is, 1–5. Click the current dot again to lower it.
+- **Effort** (S / M / L / XL) — click to cycle.
+- **Status** (*To do* / *In progress*) — click to toggle.
+- **+ Subtask** — adds a checklist with a progress bar. Tick items off, click one to rename
+  it, ✕ to remove it.
+- **📅** — set a due date. The chip reads *Due Jan 12*, turns amber within 3 days (*Due
+  tomorrow*), and red once it's past (*Overdue 4d*). Click it to change or remove the date.
+- **🔗** — attach a link (a PR, issue, commit or branch). It shows as a short chip like
+  *PR #12* or *commit abc1234*. Only `http(s)` links are accepted.
+- **●** (the colored dot) — recolor the card from a palette or a custom color; *Default*
+  goes back to the lane color.
+- **▾** — collapse the card to just its name.
+- **✓** — mark it done (it moves to the Archive). **✕** — delete it (asks first).
+
+**Moving cards.** Drag a card to reorder it or drop it in another lane. On a phone, tablet or
+keyboard, use the **⇅** button at the card's top right instead: it opens **↑ Up**, **↓ Down**
+and buttons for the other lanes. With the keyboard, **Alt+↑ / Alt+↓** moves the card you're
+on. Moving is paused while a search, filter or the quick-wins sort is on, so the order you
+see is always the real one.
+
+**Picking a card for Claude.** **▶ Work on this** marks the card *📌 Picked for Claude* and
+shows a bar at the top; tell Claude *"start my backlog pick"*. **Clear** un-picks it.
+
+**The toolbar.**
+
+- **Projects ▾** — jump to another project's board. The list is refreshed whenever you open
+  the backlog or say *"sync projects"*.
+- **Search** — matches card names and notes.
+- **Effort** and **Status** filters — show only the cards you pick; *Showing N of M* says how
+  many are hidden. **Clear filters** resets them.
+- **Sort: Manual / Quick wins ★** — *Quick wins* orders each lane by value ÷ effort (S counts
+  1, M 2, L 3, XL 4). Cards scoring 2.5 or more get a ★ either way.
+- **⬇ Export .md** — downloads the whole board as `backlog.md` (or shows it to copy).
+- **Hide controls / Show controls** (next to the title) — folds away the intro, toolbar and
+  stats so the lanes start at the top. While folded it says *filters on* if anything is
+  filtering the board.
+
+Your search, filters, sort and the folded/unfolded state are remembered in your browser.
+
+**Stats.** The strip above the lanes shows **Active**, **In progress**, **Done · 7d**,
+**Oldest active** (red at 14 days or more; hover for its name), **Avg age**, and **Overdue**
+(hover for the names).
+
+**Archive.** Finished cards, newest first, each with its note and Claude's ✓ result line
+(any links in it are clickable).
+**↺** puts a card back on the board; **✕** deletes it for good (asks first). When cards were
+finished more than 30 days ago, a **Remove N cards done more than 30 days ago** button
+clears them in one go (also asks first).
+
+**Reminder under the prompt.** If something you captured hasn't reached the board yet,
+Claude Code shows a line like *2 backlog items not on the board yet — say "show backlog" to
+sync*. It disappears once they're synced.
+
 ## Install
 
 At the prompt of a terminal Claude Code session:
