@@ -13,3 +13,6 @@ backlogs/
 *.key
 .DS_Store
 Thumbs.db
+
+# Build output (scripts/build-publish.mjs)
+dist/

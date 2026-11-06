@@ -1,3 +1,9 @@
 {
-  "extends": "./.claude-plugin/types/tsconfig.json"
+  "extends": "./.claude-plugin/types/tsconfig.json",
+  "compilerOptions": {
+    // Leave out "claude-code-mcp": it is regenerated from every MCP server
+    // connected in the session and can grow past what tsc can instantiate
+    // (TS2589). This mod never narrows on other servers' tools.
+    "types": ["claude-code", "claude-code-tools"]
+  }
 }
