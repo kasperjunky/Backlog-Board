@@ -2,8 +2,15 @@ import { expect, mock, test } from 'claude-code/testing'
 
 // Stand in for the world beneath the plugin: env vars and an in-memory file
 // system, plus the registrations session.start makes.
+// The status line the mod last set ($.ui.status), per wired test.
+const statusOf = new WeakMap<object, { text: string | undefined; calls: number }>()
+
 function wire(on: any) {
   const files: Record<string, string> = {}
+  const status = { text: undefined as string | undefined, calls: 0 }
+  statusOf.set(files, status)
+  on('ui.status', (_: any, e: any) => { status.text = e.text; status.calls++; return { value: undefined } })
+  on('turn.complete', () => ({ text: 'the answer' }))
   mock.env(on, { USERPROFILE: 'C:/Users/test', HOME: '/home/test' })
   on('fs.exists', (_: any, e: any) => ({ value: e.path in files }))
   on('fs.read', (_: any, e: any) => ({ value: e.path in files ? files[e.path] : '' }))
@@ -203,4 +210,93 @@ test('the id counter never falls behind ids already used', async ($: any, on: an
   files[path] = JSON.stringify({ known: ['a', 'b', 'c', 'd', 'e', 'f'], knownNames: [], inbox: [] })
   const r = await $.tool.call({ tool: 'mcp__backlog__add', name: 'Fresh item' })
   expect((r as any).result).toMatch(/Added #7 /)
+})
+
+// ---- /backlog subcommands and the status-line reminder ----
+
+function statusText(files: Record<string, string>): string | undefined {
+  return (statusOf.get(files) as { text: string | undefined }).text
+}
+
+test('/backlog add captures with a priority flag', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj12', surface: 'desktop', isInteractive: true })
+  const out = await $.command.run({ command: 'backlog', args: 'add Fix flaky login test !urgent' })
+  expect((out as any).text).toMatch(/Added #1 "Fix flaky login test" \(urgent/)
+  const item = readFile(files).inbox[0]
+  expect(item.name).toBe('Fix flaky login test')
+  expect(item.priority).toBe('urgent')
+})
+
+test('/backlog add dedupes like the tool and needs a name', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj13', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Write release notes' })
+  const dup = await $.command.run({ command: 'backlog', args: 'add write release notes' })
+  expect((dup as any).text).toMatch(/not added/i)
+  const empty = await $.command.run({ command: 'backlog', args: 'add !nice' })
+  expect((empty as any).text).toMatch(/usage/i)
+  expect(readFile(files).inbox.length).toBe(1)
+})
+
+test('/backlog add asks Claude to sync only when a board exists', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj14', surface: 'desktop', isInteractive: true })
+  const noBoard = await $.command.run({ command: 'backlog', args: 'add First thing' })
+  expect(((noBoard as any).context ?? []).length).toBe(0)
+
+  const path = backlogPath(files)
+  const f = readFile(files); f.boardUrl = 'https://board/1'; files[path] = JSON.stringify(f)
+  const withBoard = await $.command.run({ command: 'backlog', args: 'add Second thing' })
+  expect(((withBoard as any).context ?? []).join(' ')).toMatch(/AUTO-SYNC/)
+})
+
+test('/backlog inbox lists what is waiting, and says when nothing is', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj15', surface: 'desktop', isInteractive: true })
+  const none = await $.command.run({ command: 'backlog', args: 'inbox' })
+  expect((none as any).text).toMatch(/nothing waiting/i)
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Tidy the README', priority: 'nice' })
+  const one = await $.command.run({ command: 'backlog', args: 'inbox' })
+  expect((one as any).text).toMatch(/#1\s+Tidy the README\s+\(nice/)
+  expect(readFile(files).inbox.length).toBe(1)
+})
+
+test('/backlog with no arguments shows the board link', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj16', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files)
+  const f = readFile(files); f.boardUrl = 'https://board/xyz'; files[path] = JSON.stringify(f)
+  const out = await $.command.run({ command: 'backlog', args: '' })
+  expect((out as any).text).toMatch(/https:\/\/board\/xyz/)
+  const help = await $.command.run({ command: 'backlog', args: 'help' })
+  expect((help as any).text).toMatch(/\/backlog add/)
+})
+
+test('the status line flags captures not on the board, and clears after a sync', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj17', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBe(undefined)
+
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Ship the thing' })
+  expect(statusText(files)).toMatch(/1 backlog item captured/)
+
+  // Claude drains the inbox to the board during its turn...
+  const path = backlogPath(files)
+  const f = readFile(files); f.inbox = []; f.boardUrl = 'https://board/2'; files[path] = JSON.stringify(f)
+  // ...and the end of the turn refreshes the line
+  const done = await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 10 })
+  expect((done as any).text).toBe('the answer')
+  expect(statusText(files)).toBe(undefined)
+})
+
+test('a fresh session reminds about leftovers from last time', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj18', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files)
+  files[path] = JSON.stringify({ nextId: 3, known: [], knownNames: [], boardUrl: 'https://board/3', cwd: '/proj18',
+    inbox: [{ id: 1, name: 'A', priority: 'nice', value: 3, effort: 'M', notes: '', addedAt: '2026-11-01' },
+            { id: 2, name: 'B', priority: 'nice', value: 3, effort: 'M', notes: '', addedAt: '2026-11-01' }] })
+  await $.session.start({ cwd: '/proj18', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toMatch(/2 backlog items not on the board yet/)
 })

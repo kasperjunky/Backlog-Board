@@ -12,6 +12,12 @@ Kanban board of everything you've saved for that project.
   lanes (Urgent / Important / Nice to have) plus an Archive. Drag cards to reorder or
   re-prioritize, click to edit the name, note, value, effort, or status, and mark cards
   done to archive them.
+- **Quick commands.** `/backlog` shows your board's link and anything not on it yet;
+  `/backlog add <task> !urgent` captures without asking Claude (`!important`, `!nice` work
+  too); `/backlog inbox` lists captures waiting to sync.
+- **Nothing gets lost.** If a capture hasn't reached the board yet, a line under the prompt
+  says so (e.g. *2 backlog items not on the board yet — say "show backlog" to sync*) and
+  clears itself once they're synced.
 - **Hand work back to Claude.** Click **▶ Work on this** on any card and tell Claude
   *"start my backlog pick"* — Claude reads what you picked and starts working on it.
 - **Private and per-project.** Captures live in a per-project file under your home

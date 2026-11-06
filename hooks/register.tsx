@@ -85,6 +85,8 @@ export const register: Register = on => {
       parsed.cwd = cwdNow
       await $.fs.write(filePath, JSON.stringify(parsed, null, 2))
     }
+    // Remind, under the prompt, about captures that never reached the board.
+    $.ui.status(statusLine(parsed, brokenBackup))
 
     await $.tool.register({
       name: 'add',
@@ -111,7 +113,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'backlog',
-      description: 'Open this project’s drag-and-drop backlog board.',
+      description: 'Your backlog: board link, quick add, and what is waiting to sync.',
+      argumentHint: '[add <task> [!urgent|!important|!nice] | inbox | help]',
     })
 
     return next(e)
@@ -223,8 +226,6 @@ export const register: Register = on => {
   // string (the model reads it) — never an object.
   on('tool.call', { tool: 'mcp__backlog__add' }, async ($, e) => {
     const input = e as unknown as Record<string, unknown>
-    const name = clip(String(input.name ?? '').replace(/\s+/g, ' ').trim(), MAX_NAME)
-    if (!name) return { result: 'No item name was given.' }
 
     const exists = await $.fs.exists(filePath)
     let txt = ''
@@ -235,61 +236,171 @@ export const register: Register = on => {
         brokenBackup = filePath + '.corrupt-' + stamp()
         await $.fs.write(brokenBackup, txt)
       }
-      return {
-        result:
-          'Not added: the backlog file ' + filePath + ' could not be parsed, so it ' +
-          'was left untouched (a copy is at ' + brokenBackup + '). Repair the JSON ' +
-          'first, then add again.',
-      }
+      $.ui.status(statusLine(null, brokenBackup))
+      return { result: brokenMessage(filePath, brokenBackup) }
     }
     brokenBackup = ''
-    const file = parsed
 
-    const norm = normalizeName(name)
-    const dupInbox = file.inbox.find(i => normalizeName(i.name) === norm)
-    if (dupInbox) {
-      return { result: 'Already in your backlog inbox: "' + dupInbox.name + '". Not added.' }
-    }
-    if (file.known.includes(norm)) {
-      return { result: 'Looks like "' + name + '" is already on your backlog board. Not added.' }
-    }
-    const fuzzy = fuzzyDupName(name, file.knownNames.concat(file.inbox.map(i => i.name)))
-    if (fuzzy) {
-      return { result: 'Looks like a near-duplicate of "' + fuzzy + '" in your backlog. Not added. If it is genuinely different, rephrase the name and add again.' }
-    }
-
-    const item: InboxItem = {
-      id: file.nextId,
-      name,
-      priority: normPriority(input.priority),
-      value: normValue(input.value),
-      effort: normEffort(input.effort),
-      notes: clip(String(input.notes ?? '').replace(/\s+/g, ' ').trim(), MAX_NOTES),
-      addedAt: today(),
-    }
-    file.inbox.push(item)
-    file.nextId = file.nextId + 1
-    await $.fs.write(filePath, JSON.stringify(file, null, 2))
-
+    const out = addToFile(parsed, input)
+    if (out.added) await $.fs.write(filePath, JSON.stringify(parsed, null, 2))
+    $.ui.status(statusLine(parsed, ''))
+    if (!out.added) return { result: out.message }
     return {
       result:
-        'Added #' + item.id + ' "' + item.name + '" (' + item.priority +
-        ', value ' + item.value + ', effort ' + item.effort + ') to your backlog. ' +
-        'Now sync it to the board (auto-sync) without opening the board; no ' +
-        '"show backlog" needed.',
+        out.message + ' Now sync it to the board (auto-sync) without opening ' +
+        'the board; no "show backlog" needed.',
     }
   })
 
-  on('command.run', { command: 'backlog' }, async () => {
-    return {
-      text:
-        'Say "show backlog" (or "open the board") and I’ll open your ' +
-        'drag-and-drop backlog board and bring in anything newly captured.',
+  // /backlog            where the board is, and what is waiting to sync
+  // /backlog add <task> [!urgent|!important|!nice]
+  // /backlog inbox      list captures not on the board yet
+  // /backlog help
+  on('command.run', { command: 'backlog' }, async ($, e) => {
+    const cmd = parseBacklogArgs(e.args ?? '')
+
+    const exists = await $.fs.exists(filePath)
+    let txt = ''
+    if (exists) { try { txt = await $.fs.read(filePath) } catch { txt = '' } }
+    const file = exists ? parseFile(txt) : emptyFile()
+    if (!file) {
+      if (!brokenBackup) {
+        brokenBackup = filePath + '.corrupt-' + stamp()
+        await $.fs.write(brokenBackup, txt)
+      }
+      $.ui.status(statusLine(null, brokenBackup))
+      return { text: brokenMessage(filePath, brokenBackup) }
     }
+
+    if (cmd.kind === 'add') {
+      if (!cmd.name) return { text: 'Usage: /backlog add <task> [!urgent | !important | !nice]' }
+      const out = addToFile(file, { name: cmd.name, priority: cmd.priority })
+      if (out.added) await $.fs.write(filePath, JSON.stringify(file, null, 2))
+      $.ui.status(statusLine(file, ''))
+      if (!out.added) return { text: out.message }
+      const context = file.boardUrl
+        ? ['The user just added backlog item #' + out.added.id + ' "' + out.added.name +
+           '" with /backlog add. At your next turn, before anything else, do the AUTO-SYNC ' +
+           'drain for it (do not open the board), then continue with what the user asks.']
+        : []
+      return { text: out.message + (file.boardUrl ? ' It goes onto the board at your next message.' : ' Say "show backlog" to create your board.'), context }
+    }
+
+    if (cmd.kind === 'inbox') {
+      $.ui.status(statusLine(file, ''))
+      if (!file.inbox.length) return { text: 'Nothing waiting: every captured item is on the board.' }
+      const lines = file.inbox.map(i => '  #' + i.id + '  ' + i.name + '  (' + i.priority + ', value ' + i.value + ', effort ' + i.effort + ')')
+      return { text: file.inbox.length + ' item' + (file.inbox.length === 1 ? '' : 's') + ' not on the board yet:\n' + lines.join('\n') + '\nSay "show backlog" to sync them.' }
+    }
+
+    if (cmd.kind === 'help') return { text: BACKLOG_HELP }
+
+    // no subcommand: where the board is, and what is waiting
+    $.ui.status(statusLine(file, ''))
+    const waiting = file.inbox.length
+      ? '\n' + file.inbox.length + ' captured item' + (file.inbox.length === 1 ? ' is' : 's are') + ' not on the board yet — say "show backlog" to sync.'
+      : ''
+    const where = file.boardUrl
+      ? 'Your backlog board: ' + file.boardUrl
+      : 'No board yet for this project — say "show backlog" and I’ll create it.'
+    return { text: where + waiting + '\n' + BACKLOG_HELP_SHORT }
+  })
+
+  // After each turn of the main conversation, refresh the status line: Claude
+  // may just have synced the inbox to the board (or captured more).
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if ((e as unknown as { agentId?: string }).agentId) return result
+    if (!filePath || !(await $.fs.exists(filePath))) return result
+    let txt = ''
+    try { txt = await $.fs.read(filePath) } catch { return result }
+    const file = parseFile(txt)
+    $.ui.status(file ? statusLine(file, '') : statusLine(null, brokenBackup || filePath))
+    return result
   })
 }
 
 // ---- pure helpers (no $) ----
+
+const BACKLOG_HELP =
+  '/backlog — where your board is, and what is waiting to sync\n' +
+  '/backlog add <task> [!urgent | !important | !nice] — capture a task right now\n' +
+  '/backlog inbox — list captures not on the board yet\n' +
+  'Or just talk: "save to backlog: …", "show backlog", "start my backlog pick".'
+const BACKLOG_HELP_SHORT = 'Commands: /backlog add <task> · /backlog inbox · /backlog help'
+
+type BacklogArgs =
+  | { kind: 'show' }
+  | { kind: 'help' }
+  | { kind: 'inbox' }
+  | { kind: 'add'; name: string; priority?: Priority }
+
+// "/backlog add Fix login !urgent" → { kind: 'add', name: 'Fix login', priority: 'urgent' }
+function parseBacklogArgs(args: string): BacklogArgs {
+  const s = args.replace(/\s+/g, ' ').trim()
+  if (!s || /^(open|show|board)$/i.test(s)) return { kind: 'show' }
+  if (/^(help|\?|-h|--help)$/i.test(s)) return { kind: 'help' }
+  if (/^(inbox|list|ls|waiting)$/i.test(s)) return { kind: 'inbox' }
+  const m = s.match(/^add\b\s*(.*)$/i)
+  if (!m) return { kind: 'help' }
+  let rest = m[1] ?? ''
+  let priority: Priority | undefined
+  rest = rest.replace(/(^|\s)!(urgent|important|nice)\b/gi, (_all, _sp, p: string) => {
+    priority = p.toLowerCase() as Priority
+    return ' '
+  }).replace(/\s+/g, ' ').trim()
+  return priority ? { kind: 'add', name: rest, priority } : { kind: 'add', name: rest }
+}
+
+// Try to add one capture to the file (mutating it only when added). Shared by
+// the add tool and /backlog add, so both dedupe and number items the same way.
+function addToFile(file: BacklogFile, input: Record<string, unknown>): { added?: InboxItem; message: string } {
+  const name = clip(String(input.name ?? '').replace(/\s+/g, ' ').trim(), MAX_NAME)
+  if (!name) return { message: 'No item name was given.' }
+
+  const norm = normalizeName(name)
+  const dupInbox = file.inbox.find(i => normalizeName(i.name) === norm)
+  if (dupInbox) return { message: 'Already in your backlog inbox: "' + dupInbox.name + '". Not added.' }
+  if (file.known.includes(norm)) return { message: 'Looks like "' + name + '" is already on your backlog board. Not added.' }
+  const fuzzy = fuzzyDupName(name, file.knownNames.concat(file.inbox.map(i => i.name)))
+  if (fuzzy) {
+    return { message: 'Looks like a near-duplicate of "' + fuzzy + '" in your backlog. Not added. If it is genuinely different, rephrase the name and add again.' }
+  }
+
+  const item: InboxItem = {
+    id: file.nextId,
+    name,
+    priority: normPriority(input.priority),
+    value: normValue(input.value),
+    effort: normEffort(input.effort),
+    notes: clip(String(input.notes ?? '').replace(/\s+/g, ' ').trim(), MAX_NOTES),
+    addedAt: today(),
+  }
+  file.inbox.push(item)
+  file.nextId = file.nextId + 1
+  return {
+    added: item,
+    message: 'Added #' + item.id + ' "' + item.name + '" (' + item.priority +
+      ', value ' + item.value + ', effort ' + item.effort + ') to your backlog.',
+  }
+}
+
+// The status line under the prompt: shown only while something needs doing.
+function statusLine(file: BacklogFile | null, backup: string): string | undefined {
+  if (!file) return 'Backlog paused: its file could not be read' + (backup ? ' (copy saved: ' + backup + ')' : '') + '.'
+  const n = file.inbox.length
+  if (!n) return undefined
+  const items = n + ' backlog item' + (n === 1 ? '' : 's')
+  return file.boardUrl
+    ? items + ' not on the board yet — say "show backlog" to sync'
+    : items + ' captured — say "show backlog" to create your board'
+}
+
+function brokenMessage(path: string, backup: string): string {
+  return 'Not added: the backlog file ' + path + ' could not be parsed, so it was ' +
+    'left untouched (a copy is at ' + backup + '). Repair the JSON first, then add again.'
+}
+
 
 function emptyFile(): BacklogFile {
   return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null, cwd: '' }
