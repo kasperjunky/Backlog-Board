@@ -8,7 +8,8 @@
     --surface: #fffefb;
     --surface-2: #f0ede4;
     --fg: #211d17;
-    --muted: #8a8173;
+    --muted: #6f675a;
+    --gold: #a87400;
     --line: #e4ded2;
     --line-strong: #d4ccbc;
     --accent: #4b45c6;
@@ -36,6 +37,7 @@
       --surface-2: #2a251d;
       --fg: #f1ece2;
       --muted: #a79d8c;
+      --gold: #e0b015;
       --line: #322c23;
       --line-strong: #433c30;
       --accent: #938eef;
@@ -53,6 +55,7 @@
     --surface-2: #2a251d;
     --fg: #f1ece2;
     --muted: #a79d8c;
+    --gold: #e0b015;
     --line: #322c23;
     --line-strong: #433c30;
     --accent: #938eef;
@@ -193,6 +196,15 @@
   .resultline .rt { min-width: 0; }
   .resultline .rlink { color: var(--accent); }
   .card .colorbtn .cdot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(128,128,128,.4); display: block; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .card .mover { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .card .mover .mv { font: inherit; font-size: 12px; font-weight: 600; min-height: 28px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 3px 10px; cursor: pointer; }
+  .card .mover .mv:hover:not(:disabled) { border-color: var(--accent); }
+  .card .mover .mv:disabled { opacity: .45; cursor: default; }
+  .card .mover .mv-l { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-left: 4px; }
+  .card .mover .mv-note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
+  .card .row1 .movebtn { width: 24px; height: 24px; margin: -3px -4px -3px 0; font-size: 13px; flex: none; }
+  .card .movebtn.on { color: var(--accent); }
   .card .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 2px; }
   .card .palette .sw { width: 19px; height: 19px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .card .palette .sw.sel { border-color: var(--fg); }
@@ -201,9 +213,11 @@
   .card .palette .reset:hover { border-color: var(--accent); }
 
   .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .dots { display: inline-flex; gap: 3px; align-items: center; }
-  .dots .d { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: transparent; padding: 0; cursor: pointer; }
-  .dots .d.on { background: var(--fg); border-color: var(--fg); }
+  .dots { display: inline-flex; gap: 0; align-items: center; margin: -6px 0; }
+  .dots .d { width: 24px; height: 24px; border: none; background: transparent; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+  .dots .d::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-strong); box-sizing: border-box; }
+  .dots .d.on::before { background: var(--fg); border-color: var(--fg); }
+  .dots .d:hover::before { border-color: var(--fg); }
   .dots .lbl { font-size: 11px; color: var(--muted); margin-right: 2px; }
 
   .chip { font-size: 11.5px; font-weight: 650; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 2px 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
@@ -256,7 +270,7 @@
   .toolbar .clearf:hover { border-color: var(--accent); }
   .toolbar .fsummary { font-size: 12px; color: var(--muted); margin-left: auto; }
   .board.filtering .card, .board.sorted .card { cursor: default; }
-  .card .qw { color: #e0b015; font-size: 13px; line-height: 1; flex: none; padding-top: 1px; }
+  .card .qw { color: var(--gold); font-size: 13px; line-height: 1; flex: none; padding-top: 1px; }
   .toolbar .sortbtn { font: inherit; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
   .toolbar .sortbtn:hover { border-color: var(--accent); }
   .toolbar .sortbtn.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
@@ -317,12 +331,14 @@
   .banner b { color: var(--fg); font-weight: 650; }
   .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 14px 8px; }
 
+  button:focus-visible, a:focus-visible, summary:focus-visible, input[type="checkbox"]:focus-visible, input[type="color"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
 
+<div id="liveRegion" class="sr-only" aria-live="polite"></div>
 <div class="wrap">
   <header class="top">
     <div class="title">
@@ -569,7 +585,7 @@
       prog.appendChild(bar); prog.appendChild(ptx); wrap.appendChild(prog);
       subs.forEach(function (s, i) {
         var row = document.createElement("div"); row.className = "ck-row" + (s.done ? " done" : "");
-        var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!s.done;
+        var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!s.done; cb.setAttribute("aria-label", s.text);
         cb.addEventListener("change", function () {
           patch(it.id, { subtasks: subs.map(function (ss, idx) { return idx === i ? { text: ss.text, done: !ss.done } : ss; }) });
         });
@@ -580,7 +596,7 @@
           if (!v) { t.textContent = s.text; return; }
           if (v !== s.text) patch(it.id, { subtasks: subs.map(function (ss, idx) { return idx === i ? { text: v, done: ss.done } : ss; }) });
         });
-        var x = document.createElement("button"); x.type = "button"; x.className = "ck-x"; x.textContent = "✕"; x.title = "Remove subtask";
+        var x = document.createElement("button"); x.type = "button"; x.className = "ck-x"; x.textContent = "✕"; x.title = "Remove subtask"; x.setAttribute("aria-label", "Remove subtask " + s.text);
         x.addEventListener("click", function () { patch(it.id, { subtasks: subs.filter(function (_, idx) { return idx !== i; }) }); });
         row.appendChild(cb); row.appendChild(t); row.appendChild(x); wrap.appendChild(row);
       });
@@ -606,9 +622,11 @@
     var row1 = document.createElement("div"); row1.className = "row1";
     var caret = document.createElement("button"); caret.type = "button"; caret.className = "caret";
     caret.title = it.collapsed ? "Expand card" : "Collapse card"; caret.textContent = "▾";
+    caret.setAttribute("aria-label", caret.title); caret.setAttribute("aria-expanded", it.collapsed ? "false" : "true");
     caret.addEventListener("click", function () { patch(it.id, { collapsed: !it.collapsed }); });
     var name = document.createElement("div");
     name.className = "name"; name.contentEditable = "true"; name.spellcheck = false;
+    name.setAttribute("role", "textbox"); name.setAttribute("aria-label", "Card name");
     name.textContent = it.name;
     name.addEventListener("focus", function () { name.dataset.orig = name.textContent; });
     name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); name.blur(); } });
@@ -625,6 +643,7 @@
     // why it matters (editable note)
     var why = document.createElement("div");
     why.className = "why"; why.contentEditable = "true"; why.spellcheck = false;
+    why.setAttribute("role", "textbox"); why.setAttribute("aria-label", "Why it matters");
     why.setAttribute("data-ph", "Why it matters — click to add a note…");
     why.textContent = it.notes || "";
     why.addEventListener("focus", function () { why.dataset.orig = why.textContent; });
@@ -639,11 +658,12 @@
 
     // value dots
     var dots = document.createElement("span"); dots.className = "dots"; dots.title = "Value";
-    var lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "Value"; dots.appendChild(lbl);
+    dots.setAttribute("role", "group"); dots.setAttribute("aria-label", "Value " + (it.value || 0) + " of 5");
+    var lbl = document.createElement("span"); lbl.className = "lbl sr-only"; lbl.textContent = "Value"; dots.appendChild(lbl);
     for (var v = 1; v <= 5; v++) (function (vv) {
       var b = document.createElement("button");
       b.className = "d" + (vv <= (it.value || 0) ? " on" : "");
-      b.type = "button"; b.setAttribute("aria-label", "Value " + vv);
+      b.type = "button"; b.setAttribute("aria-label", "Set value to " + vv); b.setAttribute("aria-pressed", vv <= (it.value || 0) ? "true" : "false");
       b.addEventListener("click", function () { patch(it.id, { value: vv === it.value ? vv - 1 : vv }); });
       dots.appendChild(b);
     })(v);
@@ -652,7 +672,7 @@
     // effort chip
     var eff = document.createElement("button");
     eff.className = "chip effort"; eff.type = "button"; eff.title = "Effort (click to cycle)";
-    eff.textContent = it.effort || "M";
+    eff.textContent = it.effort || "M"; eff.setAttribute("aria-label", "Effort " + (it.effort || "M") + ", change");
     eff.addEventListener("click", function () { var n = EFFORTS[(EFFORTS.indexOf(it.effort) + 1) % EFFORTS.length]; patch(it.id, { effort: n }); });
     meta.appendChild(eff);
 
@@ -660,25 +680,28 @@
     var st = document.createElement("button");
     st.className = "chip status"; st.type = "button"; st.dataset.s = it.status;
     st.textContent = it.status === "doing" ? "In progress" : "To do";
-    st.title = "Status (click to toggle)";
+    st.title = "Status (click to toggle)"; st.setAttribute("aria-label", "Status: " + st.textContent + ", change");
     st.addEventListener("click", function () { patch(it.id, { status: it.status === "doing" ? "todo" : "doing" }); });
     meta.appendChild(st);
 
     // actions
     var actions = document.createElement("div"); actions.className = "actions";
-    var colorbtn = document.createElement("button"); colorbtn.className = "iconbtn colorbtn"; colorbtn.type = "button"; colorbtn.title = "Card color";
+    var colorbtn = document.createElement("button"); colorbtn.className = "iconbtn colorbtn"; colorbtn.type = "button"; colorbtn.title = "Card color"; colorbtn.setAttribute("aria-label", "Card color");
     var cdot = document.createElement("span"); cdot.className = "cdot"; cdot.style.background = it.color || PRIORITY_HEX[it.priority] || "var(--muted)";
     colorbtn.appendChild(cdot);
     colorbtn.addEventListener("click", function () { openPalette(li, it); });
-    var linkbtn = document.createElement("button"); linkbtn.className = "iconbtn linkbtn" + (it.link ? " on" : ""); linkbtn.type = "button"; linkbtn.title = it.link ? "Edit link" : "Attach a PR / branch / commit link"; linkbtn.textContent = "🔗";
+    var linkbtn = document.createElement("button"); linkbtn.className = "iconbtn linkbtn" + (it.link ? " on" : ""); linkbtn.type = "button"; linkbtn.title = it.link ? "Edit link" : "Attach a PR / branch / commit link"; linkbtn.textContent = "🔗"; linkbtn.setAttribute("aria-label", linkbtn.title);
     linkbtn.addEventListener("click", function () { openLinkEdit(li, it); });
     var done = document.createElement("button");
-    done.className = "iconbtn"; done.type = "button"; done.title = "Mark done (archive)"; done.innerHTML = "✓";
+    done.className = "iconbtn"; done.type = "button"; done.title = "Mark done (archive)"; done.textContent = "✓"; done.setAttribute("aria-label", "Mark done");
     done.addEventListener("click", function () { patch(it.id, { status: "done", finishedAt: today() }); });
     var del = document.createElement("button");
-    del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.innerHTML = "✕";
+    del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete card");
     del.addEventListener("click", function () { askDelete(li, it); });
-    actions.appendChild(colorbtn); actions.appendChild(linkbtn); actions.appendChild(done); actions.appendChild(del);
+    var movebtn = document.createElement("button"); movebtn.className = "iconbtn movebtn" + (moverId === it.id ? " on" : ""); movebtn.type = "button"; movebtn.textContent = "⇅";
+    movebtn.dataset.act = "movebtn"; movebtn.title = "Move card (or Alt+↑ / Alt+↓)"; movebtn.setAttribute("aria-label", "Move card"); movebtn.setAttribute("aria-expanded", moverId === it.id ? "true" : "false");
+    movebtn.addEventListener("click", function () { moverId = moverId === it.id ? null : it.id; refocus = { id: it.id, act: moverId ? "up" : "movebtn" }; render(); });
+    row1.appendChild(movebtn); actions.appendChild(colorbtn); actions.appendChild(linkbtn); actions.appendChild(done); actions.appendChild(del);
     meta.appendChild(actions);
 
     // work-on-this lane (hand the card to Claude)
@@ -710,7 +733,9 @@
     li.appendChild(row1); li.appendChild(why);
     if (it.result) li.appendChild(resultLine(it.result));
     li.appendChild(makeChecklist(it));
-    li.appendChild(meta); li.appendChild(worklane);
+    li.appendChild(meta);
+    if (moverId === it.id) li.appendChild(makeMover(it));
+    li.appendChild(worklane);
 
     li.addEventListener("dragstart", function (e) {
       dragId = it.id; suppress = true; li.classList.add("dragging"); boardEl.classList.add("dragging");
@@ -731,12 +756,75 @@
     return li;
   }
 
+  // ---- move without dragging (touch screens, keyboard) ----
+  var moverId = null;   // the card whose Move row is open (survives re-renders)
+  var refocus = null;   // { id, act }: what to focus after the next render
+  function canReorder() { return !filterActive() && sortMode !== "score"; }
+  function announce(msg) { var lr = document.getElementById("liveRegion"); if (lr) { lr.textContent = ""; setTimeout(function () { lr.textContent = msg; }, 30); } }
+  // Lay `ids` out as lane `col` in that order; persist only what changed.
+  function applyLane(col, ids) {
+    ids.forEach(function (id, idx) {
+      var it = byId(id); if (!it) return;
+      var ch = {};
+      if (it.priority !== col) { it.priority = col; ch.priority = col; }
+      if (it.order !== idx + 1) { it.order = idx + 1; ch.order = idx + 1; }
+      if (Object.keys(ch).length && db && state.canWrite) db.doc("items/" + id).update(ch).catch(onWriteErr);
+    });
+  }
+  function moveWithin(id, dir, act) {
+    var it = byId(id); if (!it || !canReorder()) return;
+    var ids = inCol(it.priority).map(function (i) { return i.id; });
+    var at = ids.indexOf(id), to = at + dir;
+    if (at < 0 || to < 0 || to >= ids.length) { announce("“" + it.name + "” is already at the " + (dir < 0 ? "top" : "bottom") + " of " + PRIORITY_LABEL[it.priority] + "."); return; }
+    ids.splice(at, 1); ids.splice(to, 0, id);
+    applyLane(it.priority, ids);
+    refocus = { id: id, act: act };
+    render();
+    announce("Moved “" + it.name + "” to position " + (to + 1) + " of " + ids.length + " in " + PRIORITY_LABEL[it.priority] + ".");
+  }
+  function moveToLane(id, col) {
+    var it = byId(id); if (!it || it.priority === col || !canReorder()) return;
+    var from = it.priority;
+    applyLane(from, inCol(from).filter(function (i) { return i.id !== id; }).map(function (i) { return i.id; }));
+    applyLane(col, inCol(col).filter(function (i) { return i.id !== id; }).map(function (i) { return i.id; }).concat([id]));
+    refocus = { id: id, act: "lane-" + from };
+    render();
+    announce("Moved “" + it.name + "” to the bottom of " + PRIORITY_LABEL[col] + ".");
+  }
+  function makeMover(it) {
+    var row = document.createElement("div"); row.className = "mover"; row.setAttribute("role", "group"); row.setAttribute("aria-label", "Move “" + it.name + "”");
+    var ok = canReorder();
+    function btn(label, act, aria, fn, disabled) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "mv"; b.textContent = label; b.dataset.act = act;
+      b.setAttribute("aria-label", aria); b.disabled = !!disabled;
+      b.addEventListener("click", fn); return b;
+    }
+    var ids = inCol(it.priority).map(function (i) { return i.id; }), at = ids.indexOf(it.id);
+    row.appendChild(btn("↑ Up", "up", "Move up", function () { moveWithin(it.id, -1, "up"); }, !ok || at <= 0));
+    row.appendChild(btn("↓ Down", "down", "Move down", function () { moveWithin(it.id, 1, "down"); }, !ok || at >= ids.length - 1));
+    var sep = document.createElement("span"); sep.className = "mv-l"; sep.textContent = "To:"; row.appendChild(sep);
+    COLS.forEach(function (col) {
+      if (col === it.priority) return;
+      row.appendChild(btn(PRIORITY_LABEL[col], "lane-" + col, "Move to " + PRIORITY_LABEL[col], function () { moveToLane(it.id, col); }, !ok));
+    });
+    if (!ok) { var note = document.createElement("span"); note.className = "mv-note"; note.textContent = "Clear filters and set Sort: Manual to move cards."; row.appendChild(note); }
+    return row;
+  }
+  // Alt+↑ / Alt+↓ moves the card that holds keyboard focus.
+  boardEl.addEventListener("keydown", function (e) {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    var cardEl = e.target.closest && e.target.closest(".card"); if (!cardEl) return;
+    e.preventDefault();
+    if (isEditingCard()) e.target.blur(); // save the edit before the card is redrawn
+    moveWithin(cardEl.dataset.id, e.key === "ArrowUp" ? -1 : 1, "movebtn");
+  });
+
   function openPalette(li, it) {
     var existing = li.querySelector(".palette");
     if (existing) { existing.remove(); return; }
     var p = document.createElement("div"); p.className = "palette";
     COLOR_PRESETS.forEach(function (c) {
-      var s = document.createElement("button"); s.type = "button";
+      var s = document.createElement("button"); s.type = "button"; s.setAttribute("aria-label", "Color " + c);
       s.className = "sw" + (it.color === c ? " sel" : ""); s.style.background = c; s.title = c;
       s.addEventListener("click", function () { patch(it.id, { color: c }); });
       p.appendChild(s);
@@ -790,8 +878,8 @@
     if (li.querySelector(".confirm")) return;
     var c = document.createElement("div"); c.className = "confirm";
     c.innerHTML = "<span>Delete?</span>";
-    var yes = document.createElement("button"); yes.className = "yes"; yes.textContent = "Delete";
-    var no = document.createElement("button"); no.textContent = "Keep";
+    var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Delete";
+    var no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
     yes.addEventListener("click", function () { removeItem(it.id); });
     no.addEventListener("click", function () { c.remove(); meta.style.visibility = ""; });
     c.appendChild(yes); c.appendChild(no);
@@ -881,8 +969,16 @@
   });
 
   // ---- render ----
+  function focusablesIn(el) { return Array.prototype.slice.call(el.querySelectorAll('button, a[href], input, [contenteditable="true"]')); }
+  // Where keyboard focus sits inside a card, so a redraw can put it back.
+  function focusKey() {
+    var a = document.activeElement, c = a && a.closest && a.closest(".card");
+    if (!c || !boardEl.contains(c)) return null;
+    return { id: c.dataset.id, idx: focusablesIn(c).indexOf(a) };
+  }
   function render() {
     if (suppress) return;
+    var keep = refocus ? null : focusKey();
     var fActive = filterActive();
     var totalShown = 0, totalAll = 0;
     COLS.forEach(function (col) {
@@ -919,9 +1015,9 @@
       var top = document.createElement("div"); top.className = "arc-top";
       var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.name;
       var acts = document.createElement("div"); acts.className = "arc-actions";
-      var res = document.createElement("button"); res.className = "iconbtn"; res.type = "button"; res.title = "Restore to board"; res.innerHTML = "↺";
+      var res = document.createElement("button"); res.className = "iconbtn"; res.type = "button"; res.title = "Restore to board"; res.textContent = "↺"; res.setAttribute("aria-label", "Restore " + it.name + " to board");
       res.addEventListener("click", function () { patch(it.id, { status: "todo", finishedAt: null, order: maxOrder(it.priority) + 1 }); });
-      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete permanently"; del.innerHTML = "✕";
+      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete permanently"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete " + it.name + " permanently");
       del.addEventListener("click", function () { askDeleteArchived(acts, it); });
       acts.appendChild(res); acts.appendChild(del);
       top.appendChild(nm); top.appendChild(acts);
@@ -948,6 +1044,19 @@
     });
     renderPickbar();
     renderStats();
+    // put keyboard focus back on the control that triggered this redraw
+    if (refocus) {
+      var rc = boardEl.querySelector('.card[data-id="' + refocus.id + '"]');
+      var tgt = rc && rc.querySelector('[data-act="' + refocus.act + '"]');
+      if (!tgt || tgt.disabled) tgt = rc && rc.querySelector('[data-act="movebtn"]');
+      refocus = null;
+      if (tgt) tgt.focus();
+    } else if (keep) {
+      // any other redraw (e.g. a db update): same control, same card
+      var kc = boardEl.querySelector('.card[data-id="' + keep.id + '"]');
+      var kt = kc && focusablesIn(kc)[keep.idx];
+      if (kt) kt.focus({ preventScroll: true });
+    }
   }
 
   function renderStats() {
