@@ -121,6 +121,17 @@ clears them in one go (also asks first).
 Claude Code shows a line like *2 backlog items not on the board yet — say "show backlog" to
 sync*. It disappears once they're synced.
 
+## Requirements
+
+- **Claude Code** with support for plugin hooks modules ("mods"). Tested with Claude Code
+  2.1.278 (CLI) and 2.1.309 (desktop app).
+- **A claude.ai sign-in.** The board is a private claude.ai Artifact with a small database,
+  so Claude needs to be able to publish artifacts in your session. Capturing (`/backlog add`,
+  "save to backlog") works without a board; the board appears the first time you say
+  *"show backlog"*.
+- **Nothing else to install** — no npm packages, servers or accounts. (For development only:
+  the board tests need Chrome or Edge.)
+
 ## Install
 
 At the prompt of a terminal Claude Code session:
@@ -138,9 +149,12 @@ claude plugin install backlog --marketplace kasperjunky/Backlog-Board
 In the desktop app (where `/plugin` doesn't run): click **+** next to the prompt box →
 **Plugins** → **Add marketplace** with `kasperjunky/Backlog-Board` → **Add plugin**.
 
-> This is a **private** repository, so it installs only for people it's shared with on
-> GitHub who also have a github.com git credential set up on their machine (an SSH key,
-> or `gh auth login` followed by `gh auth setup-git`).
+To update later, run `claude plugin update backlog` from a shell.
+
+> If you install from a **private copy** of this repository (a fork, or before it was made
+> public), only people it's shared with on GitHub can install it, and they also need a
+> github.com git credential on their machine (an SSH key, or `gh auth login` followed by
+> `gh auth setup-git`).
 
 ## How it works
 
