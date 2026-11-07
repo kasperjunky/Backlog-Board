@@ -24,5 +24,7 @@ export type BacklogFile = {
   knownNames: string[]
   inbox: InboxItem[]
   boardUrl: string | null
+  // a shared (team) board this project uses instead of its own (/backlog use)
+  useBoardUrl: string | null
   cwd: string
 }

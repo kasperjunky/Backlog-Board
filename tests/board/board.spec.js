@@ -317,6 +317,72 @@
     await themeReset();
   });
 
+  // ---- team boards ----
+  var P = window.__people;
+  function teamCard(id, name, extra) {
+    window.__remote("items/" + id, Object.assign({ name: name, priority: "nice", value: 3, effort: "M", notes: "", status: "todo", order: 9, addedAt: "2026-11-06" }, extra || {}));
+  }
+  await test("the board saves the viewer's id privately so Claude can attribute cards", async function () {
+    ok(window.__allWrites.some(function (w) { return w[0] === "set" && w[1] === "data/users/" + P.me + "/whoami" && w[2].id === P.me; }), "whoami written");
+  });
+  await test("a solo board shows no team controls", async function () {
+    eq($$(".assignadd, .assignchip, .byline").length, 0, "no people controls");
+    ok($("#mineFilter").hidden, "Mine filter hidden");
+  });
+  await test("a teammate's card shows who added it and turns on team controls", async function () {
+    teamCard("7", "Ana's task", { createdBy: P.ana }); await tick(60);
+    var by = $(".byline", card("7"));
+    ok(by && by.textContent === "by Ana Lee", "byline: " + (by && by.textContent));
+    ok($(".assignadd", card("1")), "assign button on every card");
+    ok(!$("#mineFilter").hidden, "Mine filter shown");
+    eq($$(".byline", card("1")).length, 0, "no byline on my own cards");
+  });
+  await test("assigning a card to yourself, then to a teammate found by name", async function () {
+    teamCard("7", "Ana's task", { createdBy: P.ana }); await tick(60);
+    $(".assignadd", card("7")).click(); await tick();
+    var me = $$(".assignbox .as-list button", card("7")).filter(function (b) { return b.textContent === "Me"; })[0];
+    ok(me, "Me option"); me.click(); await tick();
+    ok(window.__writes.some(function (w) { return w[1] === "items/7" && w[2] && w[2].assignee === P.me; }), "assigned to me");
+    var chip = $(".assignchip", card("7"));
+    ok(chip && chip.classList.contains("mine") && chip.textContent === "👤 You", "chip: " + (chip && chip.textContent));
+    chip.click(); await tick();
+    var inp = $(".assignbox input", card("7")); inp.value = "ben"; inp.dispatchEvent(new Event("input")); await tick();
+    var ben = $$(".assignbox .as-list button", card("7")).filter(function (b) { return b.textContent === "Ben Ortiz"; })[0];
+    ok(ben, "search found Ben"); ben.click(); await tick();
+    ok(window.__writes.some(function (w) { return w[1] === "items/7" && w[2] && w[2].assignee === P.ben; }), "assigned to Ben");
+    eq($(".assignchip", card("7")).textContent, "👤 Ben Ortiz");
+  });
+  await test("Mine shows only cards assigned to you", async function () {
+    teamCard("7", "Ana's task", { createdBy: P.ana, assignee: P.me });
+    teamCard("8", "Ben's task", { createdBy: P.ana, assignee: P.ben }); await tick(60);
+    $("#mineFilter").click(); await tick();
+    eq($$(".card .name").map(function (n) { return n.textContent; }), ["Ana's task"], "only mine");
+    $("#clearFilters").click(); await tick();
+    ok(!$("#mineFilter").classList.contains("active"), "Clear filters turns Mine off");
+  });
+  await test("Work on this saves a private pick and assigns the card to you", async function () {
+    $(".workbtn", card("2")).click(); await tick();
+    ok(window.__writes.some(function (w) { return w[0] === "set" && w[1] === "data/users/" + P.me + "/handoff" && w[2].itemId === "2"; }), "personal pick");
+    ok(!window.__writes.some(function (w) { return w[1] === "handoff/current"; }), "shared slot untouched");
+    ok(window.__writes.some(function (w) { return w[1] === "items/2" && w[2] && w[2].assignee === P.me; }), "assigned to me");
+    ok($(".pickedbadge", card("2")), "picked badge");
+    $(".pickedbadge .clr", card("2")).click(); await tick();
+    ok(window.__writes.some(function (w) { return w[0] === "delete" && w[1] === "data/users/" + P.me + "/handoff"; }), "Clear removes my pick");
+  });
+  await test("cards added on the board record who added them", async function () {
+    $('[data-add-open="important"]').click(); await tick();
+    var inp = $('[data-add="important"]'); inp.value = "Board-made card"; key(inp, "Enter"); await tick();
+    var w = window.__writes.filter(function (x) { return x[0] === "set" && /^items\/b/.test(x[1]); })[0];
+    ok(w && w[2].createdBy === P.me, "createdBy: " + (w && w[2].createdBy));
+    key(inp, "Escape"); await tick();
+  });
+  await test("a board marked as a team board shows team controls from the start", async function () {
+    window.__remote("meta/team", { enabled: true }); await tick();
+    ok($(".assignadd", card("1")) && !$("#mineFilter").hidden, "team controls on");
+    window.__remote("meta/team", { enabled: false }); await tick();
+    eq($$(".assignadd").length, 0, "off again");
+  });
+
   // ---- accessibility ----
   await test("every card and archive button has an accessible name", async function () {
     var bad = $$(".card button, .arc-item button").filter(function (b) {

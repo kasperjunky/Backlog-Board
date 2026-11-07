@@ -302,6 +302,19 @@
   .arc-tools button { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 4px 11px; cursor: pointer; }
   .arc-tools button:hover { border-color: var(--accent); }
   .arc-tools button.yes { background: var(--urgent); border-color: var(--urgent); color: var(--urgent-fg); }
+  .card .assignchip { font: inherit; font-size: 12px; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px 10px; cursor: pointer; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .assignchip.mine { border-color: var(--accent); color: var(--accent); }
+  .card .assignchip:hover, .card .assignadd:hover { border-color: var(--accent); }
+  .card .assignadd { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px dashed var(--line-strong); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
+  .card .byline { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .card .assignbox { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
+  .card .assignbox input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
+  .card .assignbox .as-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card .assignbox .as-list button, .card .assignbox .as-row button { font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .card .assignbox .as-list button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .card .assignbox .as-row { display: flex; gap: 6px; }
+  .card .assignbox .as-empty { font-size: 11.5px; color: var(--muted); }
+  .card.collapsed .assignbox { display: none; }
   .card .linkedit { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
   .card .linkedit input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
   .card .linkedit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -462,6 +475,7 @@
       <span class="fglabel">Status</span>
       <button type="button" class="fchip" data-status="todo">To do</button>
       <button type="button" class="fchip" data-status="doing">In progress</button>
+      <button type="button" class="fchip" id="mineFilter" hidden title="Only cards assigned to you">Mine</button>
     </div>
     <button type="button" class="sortbtn" id="sortToggle" title="Sort by value-vs-effort (quick wins first)">Sort: Manual</button>
     <button type="button" class="clearf" id="clearFilters" hidden>Clear filters</button>
@@ -519,6 +533,33 @@
   var pendingItems = null; // a db snapshot that arrived mid-drag, applied on drop
   var pendingRemote = false; // a db change arrived while a card field was being edited
   var filterQ = "", filterEfforts = {}, filterStatuses = {}; // view-only filters
+  var filterMine = false; // team boards: only cards assigned to me
+  // ---- people (team boards) ----
+  // me: the viewer, from the user capability. Only ids are ever stored; names
+  // are looked up for display and kept in memory.
+  var me = { id: null, isOwner: true, canEdit: true };
+  var userApi = null, names = {}, namesAsked = {}, teamFlag = false;
+  var assignOpenId = null, assignQuery = "";
+  function validUserId(v) { return typeof v === "string" && /^[A-Za-z0-9_-]{3,100}$/.test(v) ? v : null; }
+  // Team features show on a board someone else owns, once another person
+  // appears on a card, or when the board is marked as a team board.
+  function teamMode() {
+    if (teamFlag || !me.isOwner) return true;
+    return state.items.some(function (i) { return (i.createdBy && i.createdBy !== me.id) || (i.assignee && i.assignee !== me.id); });
+  }
+  function personName(id) { return id && id === me.id ? "You" : (names[id] || "Someone"); }
+  function resolveNames() {
+    if (!userApi) return;
+    var want = {};
+    state.items.forEach(function (i) { [i.createdBy, i.assignee].forEach(function (id) { if (id && !namesAsked[id]) want[id] = true; }); });
+    var ids = Object.keys(want); if (!ids.length) return;
+    ids.forEach(function (id) { namesAsked[id] = true; });
+    userApi.profiles(ids).then(function (ps) {
+      var changed = false;
+      ids.forEach(function (id) { var n = ps && ps[id] && ps[id].name; if (n && names[id] !== n) { names[id] = n; changed = true; } });
+      if (changed) renderRemote();
+    }, function () {});
+  }
   var sortMode = "manual"; // "manual" | "score" (quick wins first)
 
   var boardEl = document.getElementById("board");
@@ -594,11 +635,12 @@
     bannerEl.innerHTML = msg; bannerEl.hidden = false;
   }
 
-  function filterActive() { return !!filterQ || Object.keys(filterEfforts).length > 0 || Object.keys(filterStatuses).length > 0; }
+  function filterActive() { return !!filterQ || Object.keys(filterEfforts).length > 0 || Object.keys(filterStatuses).length > 0 || (filterMine && teamMode()); }
   function matchesFilter(it) {
     if (filterQ) { var hay = (it.name + " " + (it.notes || "")).toLowerCase(); if (hay.indexOf(filterQ) < 0) return false; }
     if (Object.keys(filterEfforts).length && !filterEfforts[it.effort]) return false;
     if (Object.keys(filterStatuses).length && !filterStatuses[it.status]) return false;
+    if (filterMine && teamMode() && it.assignee !== me.id) return false;
     return true;
   }
   function score(it) { return (it.value || 0) / (EFFORT_WEIGHT[it.effort] || 2); }
@@ -669,10 +711,14 @@
   }
 
   // ---- handoff: pick an item for Claude to start on ----
+  // Each person's pick lives in their own private area, so teammates' picks
+  // never overwrite each other; without an identity, the shared slot is used.
+  function handoffRef() { return me.id ? db.doc("data/users/" + me.id + "/handoff") : db.doc("handoff/current"); }
   function writeHandoff(it) {
-    state.handoffId = it.id; render();
+    state.handoffId = it.id;
+    if (me.id && it.assignee !== me.id && state.canWrite) patch(it.id, { assignee: me.id }); else render();
     if (!db || !state.canWrite) return;
-    db.doc("handoff/current").set({
+    handoffRef().set({
       itemId: it.id, name: it.name, notes: it.notes || "",
       priority: it.priority, value: it.value, effort: it.effort,
       requestedAt: new Date().toISOString()
@@ -680,13 +726,13 @@
   }
   function clearHandoff() {
     state.handoffId = null; render();
-    if (db) db.doc("handoff/current").delete().catch(function () {});
+    if (db) handoffRef().delete().catch(function () {});
   }
 
   function addItem(col, name) {
     name = name.trim(); if (!name) return;
     var id = "b" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, result: "", link: "", subtasks: [], status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null };
+    var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, result: "", link: "", subtasks: [], status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null, createdBy: me.id || null, assignee: null };
     state.items.push(it); render(); writeFull(it);
   }
 
@@ -868,6 +914,26 @@
       chip.textContent = "🔗 " + linkLabel(linkUrl); chip.title = linkUrl;
       worklane.appendChild(chip);
     }
+    if (teamMode()) {
+      var as = document.createElement("button"); as.type = "button";
+      if (it.assignee) {
+        as.className = "assignchip" + (it.assignee === me.id ? " mine" : "");
+        as.textContent = "👤 " + personName(it.assignee);
+        as.title = "Assigned to " + personName(it.assignee) + " — click to change";
+        as.setAttribute("aria-label", "Assigned to " + personName(it.assignee) + ", change");
+      } else {
+        as.className = "assignadd"; as.textContent = "👤"; as.title = "Assign to someone";
+        as.setAttribute("aria-label", "Assign this card");
+      }
+      as.setAttribute("aria-expanded", assignOpenId === it.id ? "true" : "false");
+      as.addEventListener("click", function () { assignOpenId = assignOpenId === it.id ? null : it.id; assignQuery = ""; render(); var f = document.querySelector('.card[data-id="' + it.id + '"] .assignbox input'); if (f) f.focus(); });
+      worklane.appendChild(as);
+      if (it.createdBy && it.createdBy !== me.id) {
+        var by = document.createElement("span"); by.className = "byline";
+        by.textContent = "by " + personName(it.createdBy); by.title = "Added by " + personName(it.createdBy);
+        worklane.appendChild(by);
+      }
+    }
 
     li.appendChild(row1); li.appendChild(why);
     if (it.result) li.appendChild(resultLine(it.result));
@@ -875,6 +941,7 @@
     li.appendChild(meta);
     if (moverId === it.id) li.appendChild(makeMover(it));
     li.appendChild(worklane);
+    if (assignOpenId === it.id && teamMode()) li.appendChild(makeAssign(it));
 
     li.addEventListener("dragstart", function (e) {
       dragId = it.id; suppress = true; li.classList.add("dragging"); boardEl.classList.add("dragging");
@@ -958,6 +1025,44 @@
     moveWithin(cardEl.dataset.id, e.key === "ArrowUp" ? -1 : 1, "movebtn");
   });
 
+  // Pick an assignee: you, people already on the board, or anyone found by name.
+  function makeAssign(it) {
+    var box = document.createElement("div"); box.className = "assignbox";
+    var inp = document.createElement("input"); inp.type = "search"; inp.placeholder = "Search people by name…";
+    inp.setAttribute("aria-label", "Search people to assign"); inp.value = assignQuery;
+    var list = document.createElement("div"); list.className = "as-list"; list.setAttribute("role", "group"); list.setAttribute("aria-label", "Assign to");
+    function choose(id) { assignOpenId = null; assignQuery = ""; patch(it.id, { assignee: id }); }
+    function fill(extra) {
+      list.innerHTML = "";
+      var seen = {}, ids = [];
+      function add(id) { if (id && !seen[id]) { seen[id] = true; ids.push(id); } }
+      add(me.id);
+      state.items.forEach(function (i) { add(i.assignee); add(i.createdBy); });
+      (extra || []).forEach(function (h) { if (h && validUserId(h.id)) { if (h.name) names[h.id] = h.name; add(h.id); } });
+      var q = inp.value.trim().toLowerCase();
+      var shown = ids.filter(function (id) { return !q || personName(id).toLowerCase().indexOf(q) >= 0 || (extra || []).some(function (h) { return h.id === id; }); });
+      if (!shown.length) { var e = document.createElement("span"); e.className = "as-empty"; e.textContent = userApi ? "No one found." : "Names aren’t available here."; list.appendChild(e); }
+      shown.forEach(function (id) {
+        var b = document.createElement("button"); b.type = "button"; b.dataset.person = id;
+        b.textContent = id === me.id ? "Me" : personName(id);
+        b.setAttribute("aria-pressed", it.assignee === id ? "true" : "false");
+        b.addEventListener("click", function () { choose(id); });
+        list.appendChild(b);
+      });
+    }
+    inp.addEventListener("input", function () {
+      assignQuery = inp.value;
+      if (userApi && inp.value.trim()) userApi.search(inp.value.trim()).then(function (hits) { fill(hits); }, function () { fill(); });
+      else fill();
+    });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); assignOpenId = null; render(); } });
+    var row = document.createElement("div"); row.className = "as-row";
+    if (it.assignee) { var un = document.createElement("button"); un.type = "button"; un.textContent = "Unassign"; un.addEventListener("click", function () { choose(null); }); row.appendChild(un); }
+    var cl = document.createElement("button"); cl.type = "button"; cl.textContent = "Close"; cl.addEventListener("click", function () { assignOpenId = null; render(); }); row.appendChild(cl);
+    box.appendChild(inp); box.appendChild(list); box.appendChild(row);
+    fill();
+    return box;
+  }
   function openPalette(li, it) {
     var existing = li.querySelector(".palette");
     if (existing) { existing.remove(); return; }
@@ -1201,6 +1306,9 @@
     });
     renderPickbar();
     renderStats();
+    var mineChip = document.getElementById("mineFilter");
+    if (mineChip) { mineChip.hidden = !teamMode(); mineChip.classList.toggle("active", filterMine); }
+    resolveNames();
     // put keyboard focus back on the control that triggered this redraw
     if (refocus) {
       var rc = boardEl.querySelector('.card[data-id="' + refocus.id + '"]');
@@ -1421,7 +1529,7 @@
   function saveView() {
     try {
       window.localStorage.setItem(VIEW_KEY, JSON.stringify({
-        q: filterQ, efforts: Object.keys(filterEfforts), statuses: Object.keys(filterStatuses), sort: sortMode
+        q: filterQ, efforts: Object.keys(filterEfforts), statuses: Object.keys(filterStatuses), sort: sortMode, mine: filterMine
       }));
     } catch (e) {}
   }
@@ -1433,6 +1541,7 @@
     (Array.isArray(v.efforts) ? v.efforts : []).forEach(function (k) { if (EFFORTS.indexOf(k) >= 0) filterEfforts[k] = true; });
     (Array.isArray(v.statuses) ? v.statuses : []).forEach(function (k) { if (k === "todo" || k === "doing") filterStatuses[k] = true; });
     if (v.sort === "score" || v.sort === "manual") sortMode = v.sort;
+    filterMine = v.mine === true;
   }
   function applySortUI() {
     var sortBtn = document.getElementById("sortToggle"); if (!sortBtn) return;
@@ -1453,8 +1562,10 @@
     var search = document.getElementById("searchInput");
     loadView();
     if (search) search.value = filterQ;
+    var mine = document.getElementById("mineFilter");
+    if (mine) mine.addEventListener("click", function () { filterMine = !filterMine; mine.classList.toggle("active", filterMine); saveView(); applyFilterUI(); render(); });
     document.querySelectorAll("#effortFilter .fchip").forEach(function (b) { b.classList.toggle("active", !!filterEfforts[b.dataset.effort]); });
-    document.querySelectorAll("#statusFilter .fchip").forEach(function (b) { b.classList.toggle("active", !!filterStatuses[b.dataset.status]); });
+    document.querySelectorAll("#statusFilter .fchip[data-status]").forEach(function (b) { b.classList.toggle("active", !!filterStatuses[b.dataset.status]); });
     applySortUI(); applyFilterUI();
     if (search) search.addEventListener("input", function () { filterQ = search.value.trim().toLowerCase(); saveView(); applyFilterUI(); render(); });
     document.querySelectorAll("#effortFilter .fchip").forEach(function (b) {
@@ -1464,7 +1575,7 @@
         b.classList.toggle("active"); saveView(); applyFilterUI(); render();
       });
     });
-    document.querySelectorAll("#statusFilter .fchip").forEach(function (b) {
+    document.querySelectorAll("#statusFilter .fchip[data-status]").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.status;
         if (filterStatuses[k]) delete filterStatuses[k]; else filterStatuses[k] = true;
@@ -1473,7 +1584,7 @@
     });
     var clr = document.getElementById("clearFilters");
     if (clr) clr.addEventListener("click", function () {
-      filterQ = ""; filterEfforts = {}; filterStatuses = {};
+      filterQ = ""; filterEfforts = {}; filterStatuses = {}; filterMine = false;
       if (search) search.value = "";
       document.querySelectorAll(".toolbar .fchip.active").forEach(function (b) { b.classList.remove("active"); });
       saveView(); applyFilterUI(); render();
@@ -1588,7 +1699,8 @@
     var next = validTheme({ palette: change.palette || theme.palette, mode: change.mode || theme.mode, custom: change.custom || theme.custom });
     if (sameTheme(next, theme)) return;
     theme = next; applyTheme(); cacheTheme(); renderThemeMenu(); render();
-    if (db && state.canWrite) db.doc("meta/theme").set({ palette: theme.palette, mode: theme.mode, custom: theme.custom, updatedAt: today() }).catch(function (e) { onWriteErr(e); });
+    // the theme is the board's, so only its owner and Editors save it; others just preview
+    if (db && state.canWrite && me.canEdit) db.doc("meta/theme").set({ palette: theme.palette, mode: theme.mode, custom: theme.custom, updatedAt: today() }).catch(function () {});
   }
   // change one custom color for the mode now showing ("" resets it)
   function setCustom(key, value) {
@@ -1671,7 +1783,7 @@
       menu.appendChild(warn);
     });
     var note = document.createElement("div"); note.className = "th-note";
-    note.textContent = state.canWrite ? "Saved on this board — it looks the same on every device." : "This board is read-only for you, so the change isn’t saved.";
+    note.textContent = !state.canWrite ? "This board is read-only for you, so the change isn’t saved." : !me.canEdit ? "Only the board’s owner and Editors can save its colors — this is a preview for you." : "Saved on this board — it looks the same on every device.";
     menu.appendChild(note);
   }
   (function initTheme() {
@@ -1708,6 +1820,31 @@
     window.claude.use("db").then(function (d) {
       if (!d) { clearTimeout(loadTimer); state.ready = true; banner("Sign in to claude.ai to load and save this board."); render(); return; }
       db = d;
+      // who is viewing: ids for Added by / Assignee / Mine, and a private
+      // spot for this person's pick
+      window.claude.use("user").then(function (u) {
+        userApi = u; if (!u) return;
+        return u.me().then(function (m) {
+          me.id = validUserId(m && m.id); me.isOwner = !!(m && m.isOwner); me.canEdit = !!(m && m.canEdit);
+          if (me.id) {
+            // Claude writes as this person but can't look up their id, so the
+            // board leaves it in their private area for Claude to read.
+            var who = db.doc("data/users/" + me.id + "/whoami");
+            who.get().then(function (snap) { if (!snap.exists) return who.set({ id: me.id }); }).catch(function () {});
+            db.doc("data/users/" + me.id + "/handoff").onSnapshot(function (doc) {
+              var hd = doc && doc.data ? doc.data() : null;
+              state.handoffId = hd && hd.itemId ? hd.itemId : null;
+              if (!suppress) renderRemote();
+            }, function () {});
+          }
+          renderThemeMenu(); renderRemote();
+        });
+      }).catch(function () {});
+      db.doc("meta/team").onSnapshot(function (doc) {
+        var td = doc && doc.data ? doc.data() : null;
+        teamFlag = !!(td && td.enabled === true);
+        if (!suppress) renderRemote();
+      }, function () {});
       db.collection("items").onSnapshot(function (snap) {
         clearTimeout(loadTimer);
         var items = [];
@@ -1725,6 +1862,8 @@
             result: typeof data.result === "string" ? data.result : "",
             link: typeof data.link === "string" ? data.link : "",
             due: safeDate(data.due),
+            createdBy: validUserId(data.createdBy),
+            assignee: validUserId(data.assignee),
             subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).map(function (s) { return { text: s.text, done: s.done === true }; }) : [],
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
@@ -1745,6 +1884,7 @@
       });
       // which item (if any) is currently picked for Claude
       db.doc("handoff/current").onSnapshot(function (doc) {
+        if (me.id) return; // people with an identity use their own pick
         var d = doc && doc.data ? doc.data() : null;
         state.handoffId = d && d.itemId ? d.itemId : null;
         if (!suppress) renderRemote();

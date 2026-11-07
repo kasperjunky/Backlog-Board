@@ -300,3 +300,113 @@ test('a fresh session reminds about leftovers from last time', async ($: any, on
   await $.session.start({ cwd: '/proj18', surface: 'desktop', isInteractive: true })
   expect(statusText(files)).toMatch(/2 backlog items not on the board yet/)
 })
+
+// ---- team boards: /backlog team, /backlog use, the repo link file ----
+
+const TEAM_BOARD = 'https://claude.ai/artifact/TeamBoard123'
+
+// The repo link file the mod wrote, whatever path spelling the engine used.
+function repoLinkPath(files: Record<string, string>): string | undefined {
+  return Object.keys(files).find(p => p.includes('backlog-board.json'))
+}
+function setBoard(files: Record<string, string>, fields: Record<string, unknown>) {
+  const path = backlogPath(files)
+  files[path] = JSON.stringify(Object.assign(readFile(files), fields))
+}
+
+test('/backlog team needs a board first', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team1', surface: 'desktop', isInteractive: true })
+  const out = await $.command.run({ command: 'backlog', args: 'team' })
+  expect((out as any).text).toMatch(/no board/i)
+  expect(repoLinkPath(files)).toBe(undefined)
+})
+
+test('/backlog team writes the repo link and asks Claude to mark the board', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team2', surface: 'desktop', isInteractive: true })
+  setBoard(files, { boardUrl: TEAM_BOARD })
+  const out = await $.command.run({ command: 'backlog', args: 'team' })
+  expect((out as any).text).toMatch(/commit that file/i)
+  expect(((out as any).context ?? []).join(' ')).toMatch(/meta\/team/)
+  const link = repoLinkPath(files) as string
+  expect(link).toBeTruthy()
+  expect(JSON.parse(files[link] as string).board).toBe(TEAM_BOARD)
+  // the owner already uses that board: no "join it" nag
+  await $.session.start({ cwd: '/team2', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBe(undefined)
+})
+
+test('a repo link is only a suggestion until the person runs /backlog use repo', async ($: any, on: any) => {
+  const files = wire(on)
+  // the owner links the board in the repo…
+  await $.session.start({ cwd: '/team3', surface: 'desktop', isInteractive: true })
+  setBoard(files, { boardUrl: TEAM_BOARD })
+  await $.command.run({ command: 'backlog', args: 'team' })
+  // …and a teammate (no board of their own) opens the same repo
+  setBoard(files, { boardUrl: null, useBoardUrl: null, inbox: [{ id: 1, name: 'Mine', priority: 'nice', value: 3, effort: 'M', notes: '', addedAt: '2026-11-07' }] })
+  await $.session.start({ cwd: '/team3', surface: 'desktop', isInteractive: true })
+  expect(readFile(files).useBoardUrl).toBe(null)
+  expect(statusText(files)).toMatch(/run \/backlog use repo/)
+
+  const out = await $.command.run({ command: 'backlog', args: 'use repo' })
+  expect((out as any).text).toMatch(/now uses the shared board/)
+  expect(readFile(files).useBoardUrl).toBe(TEAM_BOARD)
+  const ctx = ((out as any).context ?? []).join(' ')
+  expect(ctx).toMatch(/TeamBoard123/)
+  expect(ctx).toMatch(/DRAIN the 1 waiting/)
+  expect(statusText(files)).toMatch(/1 backlog item not on the board yet/)
+})
+
+test('/backlog use takes a board link, refuses anything else, and own switches back', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team4', surface: 'desktop', isInteractive: true })
+  setBoard(files, { boardUrl: 'https://claude.ai/artifact/MyOwnBoard1' })
+
+  const bad = await $.command.run({ command: 'backlog', args: 'use https://evil.example/artifact/x' })
+  expect((bad as any).text).toMatch(/doesn’t look like a board link/)
+  expect(readFile(files).useBoardUrl).toBe(null)
+
+  await $.command.run({ command: 'backlog', args: 'use ' + TEAM_BOARD + '/' })
+  expect(readFile(files).useBoardUrl).toBe(TEAM_BOARD)
+  const show = await $.command.run({ command: 'backlog', args: 'use' })
+  expect((show as any).text).toMatch(/uses the shared board: https:\/\/claude\.ai\/artifact\/TeamBoard123/)
+  const where = await $.command.run({ command: 'backlog', args: '' })
+  expect((where as any).text).toMatch(/TeamBoard123/)
+
+  const back = await $.command.run({ command: 'backlog', args: 'use own' })
+  expect((back as any).text).toMatch(/back on your own board/)
+  expect(readFile(files).useBoardUrl).toBe(null)
+  expect(readFile(files).boardUrl).toBe('https://claude.ai/artifact/MyOwnBoard1')
+})
+
+test('/backlog use repo without a link file explains what to do', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team5', surface: 'desktop', isInteractive: true })
+  const out = await $.command.run({ command: 'backlog', args: 'use repo' })
+  expect((out as any).text).toMatch(/no \.claude\/backlog-board\.json/)
+  expect(readFile(files).useBoardUrl).toBe(null)
+})
+
+test('a malformed repo link file is ignored', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team6', surface: 'desktop', isInteractive: true })
+  setBoard(files, { boardUrl: TEAM_BOARD })
+  await $.command.run({ command: 'backlog', args: 'team' })
+  const link = repoLinkPath(files) as string
+  files[link] = JSON.stringify({ board: 'javascript:alert(1)' })
+  setBoard(files, { boardUrl: null })
+  await $.session.start({ cwd: '/team6', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBe(undefined)
+  const out = await $.command.run({ command: 'backlog', args: 'use repo' })
+  expect((out as any).text).toMatch(/no \.claude\/backlog-board\.json/)
+})
+
+test('captures on a shared board ask Claude to sync there', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/team7', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'backlog', args: 'use ' + TEAM_BOARD })
+  const out = await $.command.run({ command: 'backlog', args: 'add Shared thing !urgent' })
+  expect((out as any).text).toMatch(/goes onto the board/)
+  expect(((out as any).context ?? []).join(' ')).toMatch(/AUTO-SYNC/)
+})

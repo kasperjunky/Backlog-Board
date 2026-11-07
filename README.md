@@ -57,6 +57,8 @@ Kanban board of everything you've saved for that project.
 | `/backlog` | Shows your board's link and anything not on it yet. |
 | `/backlog add <task> [!urgent \| !important \| !nice]` | Captures right away, without asking Claude (default lane: Important). |
 | `/backlog inbox` | Lists captures that haven't reached the board yet. |
+| `/backlog use` | Shows which board this project uses. `/backlog use repo` joins the team board linked in the repo, `/backlog use <board link>` uses any shared board, `/backlog use own` goes back to your own. |
+| `/backlog team` | Makes this project's board the repo's team board (see [Team boards](#team-boards)). |
 | `/backlog help` | Lists the commands. |
 
 ### A tour of the board
@@ -129,6 +131,41 @@ clears them in one go (also asks first).
 Claude Code shows a line like *2 backlog items not on the board yet — say "show backlog" to
 sync*. It disappears once they're synced.
 
+### Team boards
+
+One board can be shared by a whole team: everyone captures into it, picks cards for their
+own Claude, and sees who added what and who's on it.
+
+**To set one up** (the board's owner, once):
+
+1. In the project, run `/backlog team`. It writes `.claude/backlog-board.json` with the
+   board's link, and Claude marks the board as a team board.
+2. Commit that file.
+3. In claude.ai, open the board's **Share** menu and add your teammates as people who can
+   **use** it (Contributors).
+
+**To join** (each teammate, once): install the plugin, open the project, and run
+`/backlog use repo`. Until you do, a line under the prompt says *This repo links a team
+backlog board — run /backlog use repo to join it*; your captures stay on your own board.
+You can also join any board you've been given with `/backlog use <board link>`.
+
+**On a team board:**
+
+- **👤 Assignee.** Click 👤 on a card to assign it — to yourself, someone already on the
+  board, or anyone you find by name. *▶ Work on this* assigns the card to you.
+- **Added by.** Cards someone else added say *by Ana*.
+- **Mine.** A toolbar filter that shows only the cards assigned to you.
+- **Your own pick.** Each person's *▶ Work on this* pick is private to them, so teammates'
+  picks never overwrite each other.
+- **Who can change what.** Anyone the board is shared with as a Contributor can add, edit,
+  move and delete cards. The theme, colors and project list can be changed only by the
+  owner and Editors; others can preview a theme without saving it.
+- **Numbering.** Cards captured through Claude get the next number from a counter on the
+  board, so two people never create the same #.
+
+These controls appear only when a board is shared — on a board only you use, nothing
+changes.
+
 ## Requirements
 
 - **Claude Code** with support for plugin hooks modules ("mods"). Tested with Claude Code
@@ -185,8 +222,14 @@ a private claude.ai Artifact with a small shared database and remembers its link
   the card itself, says which item it's starting, and asks before doing anything the card
   spells out beyond ordinary work in the project (running a given command, visiting a
   URL, touching credentials or other repos).
-- **Only Editors and the owner can write to a board.** New boards are published with
-  database rules that let people the board is shared with read it but not change it.
+- **Who can write is set per part of the board.** People you share a board with as
+  Contributors can change cards (that's what makes team boards work); the theme, colors and
+  project list stay with the owner and Editors; each person's pick is private to them.
+  Because teammates can write cards, Claude treats every card as someone's text — never as
+  instructions — and asks before acting on anything a card spells out.
+- **A repo can't send your tasks elsewhere on its own.** A `.claude/backlog-board.json` in a
+  cloned repo is only a suggestion: your captures go to that board only after you run
+  `/backlog use repo`, and only links to claude.ai boards are accepted.
 - **Only `http(s)` links are clickable.** `javascript:` and other schemes are dropped.
 - **A damaged backlog file is never overwritten.** If `~/.claude/backlogs/<project>.json`
   stops parsing, the mod pauses captures and keeps a `.corrupt-<time>` copy beside it.
