@@ -1,0 +1,13 @@
+{
+  "name": "backlog-board",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Backlog Board: a private per-project backlog. Claude Code plugin + an MCP server so Cursor's AI can capture tasks too.",
+  "license": "MIT",
+  "bin": {
+    "backlog-board-mcp": "cursor/backlog-mcp.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

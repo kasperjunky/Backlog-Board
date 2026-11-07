@@ -67,6 +67,10 @@ Kanban board of everything you've saved for that project.
 **Archive** at the bottom for finished cards. Click the **+** next to a lane's name to add a
 card there (Enter adds it and keeps the box open for another; Esc closes it).
 
+**Card numbers.** Every card gets the next running number, whether Claude captured it or you
+added it on the board: **#1 … #999**, then **#A1 … #A999**, **#B1** and so on (after #Z999
+comes #AA1). A card added on the board shows its number a moment after it appears.
+
 **Editing a card.** Everything on a card is clickable:
 
 - **Name** and **"Why it matters" note** — click to edit, Enter to save.
@@ -79,6 +83,11 @@ card there (Enter adds it and keeps the box open for another; Esc closes it).
   tomorrow*), and red once it's past (*Overdue 4d*). Click it to change or remove the date.
 - **🔗** — attach a link (a PR, issue, commit or branch). It shows as a short chip like
   *PR #12* or *commit abc1234*. Only `http(s)` links are accepted.
+- **🖼** — add images (PNG, JPEG, GIF or WebP, up to 10 MB each, 8 per card). You can also
+  **drop** image files onto a card or **paste** a screenshot while editing one. Thumbnails
+  appear under the note; click one to view it full size (← → to step through, Esc to close).
+  Remove one with its ✕ (asks first). When you hand a card with images to Claude, it looks at
+  them too.
 - **●** (the colored dot) — recolor the card from a palette or a custom color; *Default*
   goes back to the lane color.
 - **▾** — collapse the card to just its name.
@@ -160,8 +169,9 @@ You can also join any board you've been given with `/backlog use <board link>`.
 - **Who can change what.** Anyone the board is shared with as a Contributor can add, edit,
   move and delete cards. The theme, colors and project list can be changed only by the
   owner and Editors; others can preview a theme without saving it.
-- **Numbering.** Cards captured through Claude get the next number from a counter on the
-  board, so two people never create the same #.
+- **Numbering.** Every card — captured through Claude or added on the board — takes the next
+  number from one counter on the board, so two people never get the same #. If two ever
+  clash, the board renumbers the newer card on its own.
 
 These controls appear only when a board is shared — on a board only you use, nothing
 changes.
@@ -207,6 +217,63 @@ To update later, run `claude plugin update backlog` from a shell.
 > github.com git credential on their machine (an SSH key, or `gh auth login` followed by
 > `gh auth setup-git`).
 
+## Using it in Cursor
+
+There are two ways, and you can use both.
+
+### Claude Code inside Cursor
+
+Cursor runs the **Claude Code extension** like any VS Code-based editor. Install the Claude
+Code extension in Cursor, then install this plugin from Cursor's terminal with the two
+commands under [Install](#install). Everything works as in any Claude Code session —
+captures, `/backlog`, the board, picks — because it *is* Claude Code.
+
+### Cursor's own AI (Agent and Chat)
+
+Cursor's built-in AI can't reach a claude.ai board, so the plugin ships a small **MCP
+server** that lets it capture tasks into the same private backlog. Captures wait in your
+inbox and land on the board the next time Claude Code syncs (Claude Code's status line points
+them out; say *"show backlog"* there).
+
+**Set up a project** — from the project's folder, with [Node.js](https://nodejs.org) 18 or
+newer installed (no Claude Code needed for this part):
+
+```
+npx -y github:kasperjunky/Backlog-Board setup
+```
+
+That writes two files into the project's `.cursor/` folder (keeping anything already there):
+
+- `.cursor/mcp.json` gains a `backlog` server:
+
+  ```json
+  {
+    "mcpServers": {
+      "backlog": {
+        "command": "npx",
+        "args": ["-y", "github:kasperjunky/Backlog-Board", "--project", "${workspaceFolder}"]
+      }
+    }
+  }
+  ```
+
+- `.cursor/rules/backlog.mdc`, a rule telling Cursor's AI when to capture.
+
+Then open **Cursor Settings → MCP** and make sure **backlog** is enabled (reload the window if
+it isn't listed). Commit both files if your team uses Cursor too.
+
+**Then just talk to Cursor's AI**: *"save this for later: add CSV export"*. It gets three tools:
+
+| Tool | What it does |
+| --- | --- |
+| `backlog_add` | Captures a task (name, priority, value, effort, notes), skipping duplicates. |
+| `backlog_inbox` | Lists captures not on the board yet. |
+| `backlog_board` | Gives the board's link to open in a browser. |
+
+It uses the same backlog file as Claude Code for that project, so the two never drift apart,
+and it follows the same rules: duplicates are skipped, a damaged file is never overwritten,
+and a team board linked in the repo is only mentioned, never used without `/backlog use repo`.
+
 ## How it works
 
 The plugin is a hooks module. On session start it registers an `add` tool (how captures
@@ -242,6 +309,7 @@ claude plugin validate .              # manifest + hooks
 claude plugin test .                  # mod tests (tests/*.test.tsx)
 npx -p typescript tsc -p . --noEmit   # type-check (once the engine has written the types)
 node scripts/test-board.mjs           # board tests in headless Chrome/Edge (no npm install)
+node scripts/test-mcp.mjs             # Cursor MCP server tests (over stdio, incl. an npx launch)
 node scripts/build-publish.mjs        # dist/board.publish.html, the file to publish
 sh scripts/install-hooks.sh           # once: run the leak scan before every push
 sh scripts/leak-scan.sh               # or run it by hand

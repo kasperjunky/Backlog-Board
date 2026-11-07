@@ -11,9 +11,11 @@
 //   __allWrites         the same, never cleared by __reset
 //   __doc(path)         read a document as stored
 //   __people / __viewer the fake directory and who is viewing (ids "u_…")
+//   __leaseBusy         true: every acquire() answers as if another board holds it
+//   __assets            { uploads, deletes, failNext }: the fake asset store
 (function () {
   "use strict";
-  var docs = {}, itemSubs = [], docSubs = {};
+  var docs = {}, itemSubs = [], docSubs = {}, leases = {};
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
   function snapItems() {
     var list = Object.keys(docs).filter(function (k) { return k.indexOf("items/") === 0; }).map(function (k) {
@@ -45,6 +47,8 @@
   };
   window.__reset = function (next) {
     docs = clone(next || window.__seed());
+    leases = {}; window.__leaseBusy = false;
+    window.__assets.uploads.length = 0; window.__assets.deletes.length = 0; window.__assets.failNext = null;
     window.__writes.length = 0;
     snapItems();
     Object.keys(docSubs).forEach(fireDoc);
@@ -59,6 +63,12 @@
         update: function (d) { rec(["update", path, clone(d)]); docs[path] = Object.assign({}, docs[path] || {}, clone(d)); later(function () { fire(path); }); return Promise.resolve(); },
         delete: function () { rec(["delete", path]); delete docs[path]; later(function () { fire(path); }); return Promise.resolve(); },
         onSnapshot: function (cb) { (docSubs[path] = docSubs[path] || []).push(cb); later(function () { fireDoc(path); }); },
+        acquire: function (o) {
+          var now = Date.now(), l = leases[path];
+          if (window.__leaseBusy || (l && l.until > now && l.holder !== o.holder)) return Promise.resolve({ acquired: false, expiresAt: new Date(now + 1000).toISOString() });
+          leases[path] = { holder: o.holder, until: now + (o.ttlMs || 30000) };
+          return Promise.resolve({ acquired: true, holder: o.holder, expiresAt: new Date(leases[path].until).toISOString() });
+        },
         get: function () { var d = clone(docs[path]); return Promise.resolve({ id: path.split("/").pop(), exists: d != null, data: function () { return d == null ? undefined : clone(d); }, metadata: { fromCache: false } }); }
       };
     }
@@ -83,5 +93,18 @@
       return Promise.resolve(Object.keys(directory).filter(function (id) { return !q || directory[id].toLowerCase().indexOf(q) >= 0; }).slice(0, 8).map(profile));
     }
   };
-  window.claude = { use: function (name) { return Promise.resolve(name === "db" ? db : name === "user" ? user : null); } };
+  // ---- a fake `assets` capability ----
+  window.__assets = { uploads: [], deletes: [], failNext: null };
+  var assets = {
+    upload: function (blob, opts) {
+      var fail = window.__assets.failNext; window.__assets.failNext = null;
+      if (fail) return Promise.reject({ code: fail, message: fail });
+      var id = ""; for (var i = 0; i < 32; i++) id += "0123456789abcdef"[Math.floor(Math.random() * 16)];
+      window.__assets.uploads.push({ id: id, type: (opts && opts.type) || blob.type, size: blob.size });
+      return Promise.resolve({ id: id, url: "/_blob/" + id, sizeBytes: blob.size, contentType: (opts && opts.type) || blob.type });
+    },
+    delete: function (ref) { window.__assets.deletes.push(ref); return Promise.resolve({ deleted: true }); },
+    list: function () { return Promise.resolve({ assets: [], usage: { files: 0, bytes: 0, maxFiles: 1000, maxBytes: 1e9 } }); }
+  };
+  window.claude = { use: function (name) { return Promise.resolve(name === "db" ? db : name === "user" ? user : name === "assets" ? assets : null); } };
 })();

@@ -315,6 +315,32 @@
   .card .assignbox .as-row { display: flex; gap: 6px; }
   .card .assignbox .as-empty { font-size: 11.5px; color: var(--muted); }
   .card.collapsed .assignbox { display: none; }
+  .card .imgbtn { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px dashed var(--line-strong); border-radius: 7px; padding: 3px 8px; cursor: pointer; }
+  .card .imgbtn:hover { color: var(--fg); border-color: var(--accent); }
+  .card .imgstrip { display: flex; flex-direction: column; gap: 6px; }
+  .card .img-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card .img-cell { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line-strong); background: var(--surface-2); flex: none; }
+  .card .img-cell.uploading { display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--muted); text-align: center; padding: 4px; }
+  .card .img-thumb { display: block; width: 100%; height: 100%; padding: 0; border: none; background: none; cursor: zoom-in; }
+  .card .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .img-cell.missing .img-thumb img { visibility: hidden; }
+  .card .img-cell.missing::after { content: "Image unavailable"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center; padding: 4px; pointer-events: none; }
+  .card .img-x { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 10px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .12s; }
+  .card .img-cell:hover .img-x, .card .img-x:focus-visible { opacity: 1; }
+  @media (hover: none) { .card .img-x { opacity: 1; } }
+  .card .img-ask { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; padding: 4px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+  .card .img-ask button { font: inherit; font-size: 10.5px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); border-radius: 5px; padding: 1px 4px; cursor: pointer; }
+  .card .img-ask button.yes { background: var(--urgent); border-color: var(--urgent); color: var(--urgent-fg); }
+  .card .img-msg { font-size: 11.5px; color: var(--urgent); }
+  .card.img-drop { outline: 2px dashed var(--accent); outline-offset: 2px; }
+  .card.collapsed .imgstrip { display: none; }
+  .lb-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.78); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .lb-box { display: flex; flex-direction: column; gap: 10px; max-width: 100%; max-height: 100%; }
+  .lb-img { max-width: min(92vw, 1400px); max-height: 78vh; object-fit: contain; border-radius: 8px; background: var(--surface-2); align-self: center; }
+  .lb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #fff; font-size: 13px; }
+  .lb-bar .lb-cap { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-bar button, .lb-bar a { font: inherit; font-size: 12.5px; color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); border-radius: 7px; padding: 4px 11px; cursor: pointer; text-decoration: none; }
+  .lb-bar button:disabled { opacity: .4; cursor: default; }
   .card .linkedit { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
   .card .linkedit input { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; }
   .card .linkedit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -537,7 +563,7 @@
   // ---- people (team boards) ----
   // me: the viewer, from the user capability. Only ids are ever stored; names
   // are looked up for display and kept in memory.
-  var me = { id: null, isOwner: true, canEdit: true };
+  var me = { id: null, isOwner: true, canEdit: true, canWrite: true };
   var userApi = null, names = {}, namesAsked = {}, teamFlag = false;
   var assignOpenId = null, assignQuery = "";
   function validUserId(v) { return typeof v === "string" && /^[A-Za-z0-9_-]{3,100}$/.test(v) ? v : null; }
@@ -729,11 +755,75 @@
     if (db) handoffRef().delete().catch(function () {});
   }
 
+  // ---- running card numbers: #1 … #999, then #A1 … #A999, #B1 … #Z999, #AA1 …
+  // One counter doc (counters/items = { next }) hands out numbers to everyone:
+  // Claude (pinned writes) and every open board (under a short lease, since the
+  // page has no transactions). Cards keep their doc id; the number is `num`.
+  function seriesLetters(i) { var s = ""; i = i + 1; while (i > 0) { var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
+  function formatNum(n) {
+    if (!(n > 0)) return "";
+    n = Math.floor(n);
+    if (n <= 999) return String(n);
+    var k = n - 1000;
+    return seriesLetters(Math.floor(k / 999)) + (k % 999 + 1);
+  }
+  // the card's number: its `num`, or a numeric doc id (cards Claude created)
+  function cardNum(it) { return it.num > 0 ? it.num : (/^\d+$/.test(it.id) ? +it.id : 0); }
+  function cardLabel(it) { var n = cardNum(it); return n ? formatNum(n) : it.id; }
+  var tabId = "tab-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  var numbering = false, numberRetry = 0;
+  function nextFloor() { var m = 0; state.items.forEach(function (i) { var n = cardNum(i); if (n > m) m = n; }); return m + 1; }
+  // Claim `count` consecutive numbers; resolves [n…], or null when another
+  // board holds the counter right now (try again shortly).
+  function allocateNumbers(count) {
+    var ref = db.doc("counters/items");
+    // a runtime without leases falls back to a plain read-then-write; the
+    // duplicate repair in ensureNumbers covers the rare race that allows
+    var lease = typeof ref.acquire === "function" ? ref.acquire({ holder: tabId, ttlMs: 8000 }) : Promise.resolve({ acquired: true });
+    return Promise.resolve(lease).then(function (lease) {
+      if (!lease || !lease.acquired) return null;
+      return ref.get().then(function (snap) {
+        var d = snap && snap.exists ? snap.data() : null;
+        var cur = d && typeof d.next === "number" && d.next > 0 ? Math.floor(d.next) : 1;
+        cur = Math.max(cur, nextFloor()); // never behind a number already on the board
+        var nums = []; for (var i = 0; i < count; i++) nums.push(cur + i);
+        return ref.set({ next: cur + count }).then(function () { return nums; });
+      });
+    });
+  }
+  // Number every card that has none, and renumber the newer of two cards that
+  // ended up with the same number (possible only if two writers raced).
+  function ensureNumbers() {
+    if (!db || !state.canWrite || !me.canWrite || numbering || suppress) return;
+    var targets = state.items.filter(function (i) { return !cardNum(i); })
+      .sort(function (a, b) { return (a.addedAt || "").localeCompare(b.addedAt || "") || (a.id < b.id ? -1 : 1); });
+    var byNum = {};
+    state.items.forEach(function (i) { var n = cardNum(i); if (n) (byNum[n] = byNum[n] || []).push(i); });
+    Object.keys(byNum).forEach(function (n) {
+      var group = byNum[n]; if (group.length < 2) return;
+      // keep the card whose doc id is the number (Claude's), else the oldest id
+      group.sort(function (a, b) { return (a.id === String(n) ? -1 : b.id === String(n) ? 1 : 0) || (a.id < b.id ? -1 : 1); });
+      group.slice(1).forEach(function (i) { if (targets.indexOf(i) < 0) targets.push(i); });
+    });
+    if (!targets.length) { numberRetry = 0; return; }
+    numbering = true;
+    function again() { if (numberRetry++ < 6) setTimeout(ensureNumbers, 400 + Math.random() * 600); }
+    // Promise.resolve().then: a throw inside becomes a rejection, so
+    // `numbering` is always released
+    Promise.resolve().then(function () { return allocateNumbers(targets.length); }).then(function (nums) {
+      numbering = false;
+      if (!nums) { again(); return; } // another board holds the counter
+      numberRetry = 0;
+      targets.forEach(function (it, k) { patch(it.id, { num: nums[k] }); });
+    }, function () { numbering = false; again(); });
+  }
+
   function addItem(col, name) {
     name = name.trim(); if (!name) return;
     var id = "b" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
     var it = { id: id, name: name, priority: col, value: 3, effort: "M", notes: "", collapsed: false, color: null, result: "", link: "", subtasks: [], status: "todo", order: maxOrder(col) + 1, addedAt: today(), finishedAt: null, createdBy: me.id || null, assignee: null };
     state.items.push(it); render(); writeFull(it);
+    ensureNumbers(); // the number fills in as soon as the counter hands one out
   }
 
   // ---- subtasks / checklist ----
@@ -807,7 +897,7 @@
       if (!v) { name.textContent = name.dataset.orig || it.name; return; }
       if (v !== it.name) { name.textContent = v; patch(it.id, { name: v }); }
     });
-    var idtag = document.createElement("span"); idtag.className = "idtag"; idtag.textContent = "#" + it.id;
+    var idtag = document.createElement("span"); idtag.className = "idtag"; idtag.textContent = "#" + cardLabel(it);
     row1.appendChild(caret); row1.appendChild(name);
     if (isQuickWin(it)) { var qw = document.createElement("span"); qw.className = "qw"; qw.textContent = "★"; qw.title = "Quick win — high value, low effort"; row1.appendChild(qw); }
     row1.appendChild(idtag);
@@ -914,6 +1004,12 @@
       chip.textContent = "🔗 " + linkLabel(linkUrl); chip.title = linkUrl;
       worklane.appendChild(chip);
     }
+    if (assetsApi && state.canWrite) {
+      var ib = document.createElement("button"); ib.type = "button"; ib.className = "imgbtn"; ib.textContent = "🖼";
+      ib.title = "Add images (or drop / paste them onto the card)"; ib.setAttribute("aria-label", "Add images to this card");
+      ib.addEventListener("click", function () { pickImages(it); });
+      worklane.appendChild(ib);
+    }
     if (teamMode()) {
       var as = document.createElement("button"); as.type = "button";
       if (it.assignee) {
@@ -936,6 +1032,7 @@
     }
 
     li.appendChild(row1); li.appendChild(why);
+    var strip = makeImageStrip(it, li); if (strip) li.appendChild(strip);
     if (it.result) li.appendChild(resultLine(it.result));
     li.appendChild(makeChecklist(it));
     li.appendChild(meta);
@@ -1063,6 +1160,176 @@
     fill();
     return box;
   }
+  // ---- images on cards ----
+  // Files go to the artifact's asset store; a card keeps only their ids
+  // (images: [{ id }]) and shows them from "/_blob/<id>". Uploaded files are
+  // other people's content: they are only ever shown as <img>, never run,
+  // styled with, or inserted as HTML.
+  var assetsApi = null;           // null: this viewer can't upload (controls hidden)
+  var IMG_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+  var IMG_MAX_BYTES = 10 * 1024 * 1024, IMG_MAX_PER_CARD = 8;
+  var imgStatus = {};             // card id -> { busy: n, msg: "" } (this view only)
+  var imgRemoveAsk = null;        // "cardId:imageId" awaiting a second click
+  function safeAssetId(v) { return typeof v === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(v) ? v : ""; }
+  function cleanImages(list) {
+    var out = [], seen = {};
+    (Array.isArray(list) ? list : []).forEach(function (x) { var id = safeAssetId(x && x.id); if (id && !seen[id]) { seen[id] = true; out.push({ id: id }); } });
+    return out.slice(0, IMG_MAX_PER_CARD);
+  }
+  function imgSrc(id) { return "/_blob/" + id; }
+  function setImgStatus(cardId, change) {
+    var s = imgStatus[cardId] || { busy: 0, msg: "" };
+    if (change.busy) s.busy = Math.max(0, s.busy + change.busy);
+    if ("msg" in change) s.msg = change.msg;
+    imgStatus[cardId] = s; renderRemote();
+  }
+  var UPLOAD_MSG = {
+    too_large: "That image is too big (10 MB at most).",
+    unsupported_type: "Only PNG, JPEG, GIF or WebP images can be added.",
+    quota_or_state: "This board’s image storage is full right now.",
+    rate_limited: "Too many uploads at once — wait a moment and try again.",
+    upstream_auth: "Couldn’t upload — reload the board or sign in again.",
+    not_granted: "You can’t add images to this board.",
+    capability_disabled: "Images can’t be added in this view."
+  };
+  // Upload image files to one card, in order, then save their ids on the card.
+  function addImages(it, files) {
+    if (!assetsApi || !state.canWrite) return;
+    files = Array.prototype.slice.call(files || []);
+    var room = IMG_MAX_PER_CARD - cleanImages(it.images).length;
+    if (!files.length) return;
+    if (room <= 0) { setImgStatus(it.id, { msg: "A card holds " + IMG_MAX_PER_CARD + " images at most." }); return; }
+    var ok = [], skipped = "";
+    files.forEach(function (f) {
+      if (IMG_TYPES.indexOf(f.type) < 0) skipped = UPLOAD_MSG.unsupported_type;
+      else if (f.size > IMG_MAX_BYTES) skipped = UPLOAD_MSG.too_large;
+      else if (ok.length < room) ok.push(f);
+      else skipped = "A card holds " + IMG_MAX_PER_CARD + " images at most.";
+    });
+    setImgStatus(it.id, { msg: skipped });
+    ok.forEach(function (f) {
+      setImgStatus(it.id, { busy: 1 });
+      var tries = 0;
+      (function attempt() {
+        assetsApi.upload(f, { type: f.type }).then(function (res) {
+          var id = safeAssetId(res && res.id);
+          setImgStatus(it.id, { busy: -1 });
+          if (!id) return;
+          var cur = byId(it.id); if (!cur) return;
+          patch(it.id, { images: cleanImages(cur.images).concat([{ id: id }]).slice(0, IMG_MAX_PER_CARD) });
+        }, function (e) {
+          var code = e && e.code;
+          if (code === "store_unavailable" && tries++ < 1) { setTimeout(attempt, 800 + Math.random() * 700); return; }
+          setImgStatus(it.id, { busy: -1, msg: UPLOAD_MSG[code] || "Couldn’t upload that image." });
+        });
+      })();
+    });
+  }
+  function removeImage(it, id) {
+    imgRemoveAsk = null;
+    patch(it.id, { images: cleanImages(it.images).filter(function (x) { return x.id !== id; }) });
+    // the file itself: removed for good (it only ever belonged to this card);
+    // someone else's upload refuses (not_uploader) and simply stays stored
+    if (assetsApi) assetsApi.delete(id).catch(function () {});
+  }
+  function pickImages(it) {
+    var inp = document.createElement("input"); inp.type = "file"; inp.accept = IMG_TYPES.join(","); inp.multiple = true;
+    inp.addEventListener("change", function () { addImages(it, inp.files); });
+    inp.click();
+  }
+  function makeImageStrip(it, li) {
+    var imgs = cleanImages(it.images), st = imgStatus[it.id] || { busy: 0, msg: "" };
+    if (!imgs.length && !st.busy && !st.msg) return null;
+    var wrap = document.createElement("div"); wrap.className = "imgstrip";
+    var row = document.createElement("div"); row.className = "img-row";
+    imgs.forEach(function (im, k) {
+      var cell = document.createElement("div"); cell.className = "img-cell";
+      var open = document.createElement("button"); open.type = "button"; open.className = "img-thumb";
+      open.setAttribute("aria-label", "Open image " + (k + 1) + " of " + imgs.length);
+      var img = document.createElement("img"); img.alt = ""; img.loading = "lazy"; img.src = imgSrc(im.id);
+      img.addEventListener("error", function () { cell.classList.add("missing"); });
+      open.appendChild(img);
+      open.addEventListener("click", function () { openLightbox(it, k, open); });
+      cell.appendChild(open);
+      if (state.canWrite) {
+        var key = it.id + ":" + im.id;
+        if (imgRemoveAsk === key) {
+          var ask = document.createElement("div"); ask.className = "img-ask";
+          var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Remove";
+          yes.addEventListener("click", function () { removeImage(it, im.id); });
+          var no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
+          no.addEventListener("click", function () { imgRemoveAsk = null; render(); });
+          ask.appendChild(yes); ask.appendChild(no); cell.appendChild(ask);
+        } else {
+          var x = document.createElement("button"); x.type = "button"; x.className = "img-x"; x.textContent = "✕";
+          x.setAttribute("aria-label", "Remove image " + (k + 1));
+          x.addEventListener("click", function () { imgRemoveAsk = key; render(); });
+          cell.appendChild(x);
+        }
+      }
+      row.appendChild(cell);
+    });
+    for (var b = 0; b < st.busy; b++) { var up = document.createElement("div"); up.className = "img-cell uploading"; up.textContent = "Uploading…"; row.appendChild(up); }
+    if (imgs.length || st.busy) wrap.appendChild(row);
+    if (st.msg) { var m = document.createElement("div"); m.className = "img-msg"; m.setAttribute("role", "status"); m.textContent = st.msg; wrap.appendChild(m); }
+    return wrap;
+  }
+  // full-size viewer: ← → between a card's images, Esc closes
+  function openLightbox(it, start, returnTo) {
+    var imgs = cleanImages(it.images); if (!imgs.length) return;
+    var k = start;
+    var ov = document.createElement("div"); ov.className = "lb-overlay"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Image viewer");
+    var box = document.createElement("div"); box.className = "lb-box";
+    var img = document.createElement("img"); img.className = "lb-img"; img.alt = "";
+    var bar = document.createElement("div"); bar.className = "lb-bar";
+    var cap = document.createElement("span"); cap.className = "lb-cap";
+    var prev = document.createElement("button"); prev.type = "button"; prev.textContent = "← Previous";
+    var next = document.createElement("button"); next.type = "button"; next.textContent = "Next →";
+    var full = document.createElement("a"); full.textContent = "Open full size"; full.target = "_blank"; full.rel = "noopener noreferrer";
+    var close = document.createElement("button"); close.type = "button"; close.className = "lb-close"; close.textContent = "Close";
+    function show() {
+      img.src = imgSrc(imgs[k].id); full.href = imgSrc(imgs[k].id);
+      cap.textContent = it.name + " — " + (k + 1) + " / " + imgs.length;
+      prev.disabled = k === 0; next.disabled = k === imgs.length - 1;
+    }
+    function done() { ov.remove(); document.removeEventListener("keydown", onKey, true); if (returnTo && document.contains(returnTo)) returnTo.focus(); }
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(); }
+      else if (e.key === "ArrowLeft" && k > 0) { k--; show(); }
+      else if (e.key === "ArrowRight" && k < imgs.length - 1) { k++; show(); }
+    }
+    prev.addEventListener("click", function () { if (k > 0) { k--; show(); } });
+    next.addEventListener("click", function () { if (k < imgs.length - 1) { k++; show(); } });
+    close.addEventListener("click", done);
+    ov.addEventListener("click", function (e) { if (e.target === ov) done(); });
+    document.addEventListener("keydown", onKey, true);
+    bar.appendChild(cap); bar.appendChild(prev); bar.appendChild(next); bar.appendChild(full); bar.appendChild(close);
+    box.appendChild(img); box.appendChild(bar); ov.appendChild(box);
+    document.body.appendChild(ov); show(); close.focus();
+  }
+  // drop image files on a card, or paste one while working in it
+  function hasFiles(e) { var t = e.dataTransfer && e.dataTransfer.types; return !!t && Array.prototype.indexOf.call(t, "Files") >= 0; }
+  boardEl.addEventListener("dragover", function (e) {
+    if (dragId || !assetsApi || !hasFiles(e)) return;
+    var c = e.target.closest && e.target.closest(".card"); if (!c) return;
+    e.preventDefault(); c.classList.add("img-drop");
+  });
+  boardEl.addEventListener("dragleave", function (e) { var c = e.target.closest && e.target.closest(".card"); if (c && !c.contains(e.relatedTarget)) c.classList.remove("img-drop"); });
+  boardEl.addEventListener("drop", function (e) {
+    if (dragId || !assetsApi || !hasFiles(e)) return;
+    var c = e.target.closest && e.target.closest(".card"); if (!c) return;
+    e.preventDefault(); c.classList.remove("img-drop");
+    var it = byId(c.dataset.id); if (it) addImages(it, e.dataTransfer.files);
+  });
+  document.addEventListener("paste", function (e) {
+    if (!assetsApi) return;
+    var c = document.activeElement && document.activeElement.closest && document.activeElement.closest(".card"); if (!c) return;
+    var files = Array.prototype.slice.call((e.clipboardData && e.clipboardData.files) || []).filter(function (f) { return /^image\//.test(f.type); });
+    if (!files.length) return; // plain text pastes as usual
+    e.preventDefault();
+    var it = byId(c.dataset.id); if (it) addImages(it, files);
+  });
+
   function openPalette(li, it) {
     var existing = li.querySelector(".palette");
     if (existing) { existing.remove(); return; }
@@ -1441,6 +1708,7 @@
         if (it.notes) out.push("  - " + it.notes);
         if (it.due) out.push("  - 📅 due " + it.due);
         if (safeUrl(it.link)) out.push("  - 🔗 " + safeUrl(it.link));
+        if (cleanImages(it.images).length) out.push("  - 🖼 " + cleanImages(it.images).length + " image" + (cleanImages(it.images).length === 1 ? "" : "s"));
         (it.subtasks || []).forEach(function (s) { out.push("  - [" + (s.done ? "x" : " ") + "] " + s.text); });
       });
       out.push("");
@@ -1822,10 +2090,12 @@
       db = d;
       // who is viewing: ids for Added by / Assignee / Mine, and a private
       // spot for this person's pick
+      window.claude.use("assets").then(function (a) { assetsApi = a || null; if (assetsApi) renderRemote(); }, function () {});
       window.claude.use("user").then(function (u) {
         userApi = u; if (!u) return;
         return u.me().then(function (m) {
           me.id = validUserId(m && m.id); me.isOwner = !!(m && m.isOwner); me.canEdit = !!(m && m.canEdit);
+          if (u.can) u.can("data.write").then(function (w) { if (w === false) me.canWrite = false; else ensureNumbers(); }, function () {});
           if (me.id) {
             // Claude writes as this person but can't look up their id, so the
             // board leaves it in their private area for Claude to read.
@@ -1864,6 +2134,8 @@
             due: safeDate(data.due),
             createdBy: validUserId(data.createdBy),
             assignee: validUserId(data.assignee),
+            num: typeof data.num === "number" && data.num > 0 ? Math.floor(data.num) : 0,
+            images: cleanImages(data.images),
             subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).map(function (s) { return { text: s.text, done: s.done === true }; }) : [],
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
@@ -1877,6 +2149,7 @@
         var first = !state.ready;
         state.items = items; state.ready = true;
         if (first) render(); else renderRemote();
+        ensureNumbers();
       }, function (err) {
         clearTimeout(loadTimer); state.ready = true;
         if (err && err.code === "revoked") banner("Your access to this board changed. Reopen it from chat.");

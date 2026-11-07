@@ -383,6 +383,139 @@
     eq($$(".assignadd").length, 0, "off again");
   });
 
+  // ---- running numbers ----
+  function label(id) { var c = card(id); return c ? $(".idtag", c).textContent : null; }
+  await test("a card added on the board gets the next running number", async function () {
+    $('[data-add-open="urgent"]').click(); await tick();
+    var inp = $('[data-add="urgent"]'); inp.value = "Numbered card"; key(inp, "Enter"); await tick(80);
+    key(inp, "Escape"); await tick();
+    var w = window.__writes.filter(function (x) { return x[0] === "update" && x[2] && typeof x[2].num === "number"; })[0];
+    ok(w, "a num was written");
+    eq(w[2].num, 7, "next after the highest card (#6)");
+    eq(window.__doc("counters/items").next, 8, "counter advanced");
+    var id = w[1].split("/")[1];
+    eq(label(id), "#7", "shown as #7, not its doc id");
+  });
+  await test("cards without a number are numbered oldest first", async function () {
+    window.__remote("counters/items", { next: 40 });
+    window.__remote("items/bOld", { name: "Older board card", priority: "nice", status: "todo", order: 5, addedAt: "2026-11-01" });
+    window.__remote("items/bNew", { name: "Newer board card", priority: "nice", status: "todo", order: 6, addedAt: "2026-11-05" });
+    await tick(120);
+    eq([window.__doc("items/bOld").num, window.__doc("items/bNew").num], [40, 41]);
+    eq([label("bOld"), label("bNew")], ["#40", "#41"]);
+  });
+  await test("two cards with the same number: the newer one is renumbered", async function () {
+    window.__remote("counters/items", { next: 50 });
+    window.__remote("items/bDup", { name: "Clashing card", priority: "nice", status: "todo", order: 7, addedAt: "2026-11-06", num: 2 });
+    await tick(120);
+    eq(window.__doc("items/2").num, undefined, "Claude's #2 keeps its number");
+    eq(window.__doc("items/bDup").num, 50, "the clashing card got a fresh one");
+  });
+  await test("after #999 come #A1 … #A999, then #B1, and #AA1 after #Z999", async function () {
+    var cases = [[999, "#999"], [1000, "#A1"], [1998, "#A999"], [1999, "#B1"], [26973, "#Z999"], [26974, "#AA1"]];
+    cases.forEach(function (c, k) { window.__remote("items/n" + k, { name: "N" + k, priority: "nice", status: "todo", order: 20 + k, addedAt: "2026-11-01", num: c[0] }); });
+    await tick(60);
+    eq(cases.map(function (c, k) { return label("n" + k); }), cases.map(function (c) { return c[1]; }));
+  });
+  await test("while another board holds the counter, numbering waits and retries", async function () {
+    window.__leaseBusy = true;
+    window.__remote("items/bWait", { name: "Waiting card", priority: "nice", status: "todo", order: 9, addedAt: "2026-11-07" });
+    await tick(100);
+    ok(!window.__doc("items/bWait").num, "not numbered while the counter is busy");
+    window.__leaseBusy = false;
+    await tick(1500);
+    ok(window.__doc("items/bWait").num > 0, "numbered once it's free");
+  });
+
+  // ---- images on cards ----
+  function png(name, bytes) { return new File([new Uint8Array(bytes || 64)], name || "shot.png", { type: "image/png" }); }
+  function imagesOf(id) { var d = window.__doc("items/" + id); return (d && d.images) || []; }
+  // click 🖼 and "choose" files in the picker it opens
+  async function pickFiles(cardId, files) {
+    var orig = HTMLInputElement.prototype.click, picker = null;
+    HTMLInputElement.prototype.click = function () { if (this.type === "file") picker = this; else orig.call(this); };
+    try { $(".imgbtn", card(cardId)).click(); } finally { HTMLInputElement.prototype.click = orig; }
+    ok(picker, "a file picker opened");
+    ok(/image\/png/.test(picker.accept) && picker.multiple, "accepts images, several at once");
+    var dt = new DataTransfer(); files.forEach(function (f) { dt.items.add(f); });
+    picker.files = dt.files; picker.dispatchEvent(new Event("change")); await tick(80);
+  }
+  await test("adding an image saves its id on the card and shows a thumbnail", async function () {
+    await pickFiles("1", [png("mockup.png")]);
+    eq(window.__assets.uploads.length, 1, "one upload");
+    eq(window.__assets.uploads[0].type, "image/png", "type passed explicitly");
+    var imgs = imagesOf("1"); eq(imgs.length, 1, "saved on the card");
+    var thumb = $(".imgstrip img", card("1"));
+    ok(thumb && thumb.getAttribute("src") === "/_blob/" + imgs[0].id, "thumbnail from the stored id: " + (thumb && thumb.getAttribute("src")));
+  });
+  await test("wrong file types and oversized images are refused before uploading", async function () {
+    await pickFiles("4", [new File(["hello"], "notes.txt", { type: "text/plain" })]);
+    ok(/Only PNG, JPEG, GIF or WebP/.test($(".img-msg", card("4")).textContent), "type message");
+    await pickFiles("4", [png("huge.png", 10 * 1024 * 1024 + 1)]);
+    ok(/too big/.test($(".img-msg", card("4")).textContent), "size message");
+    eq(window.__assets.uploads.length, 0, "nothing uploaded");
+  });
+  await test("an upload the store refuses shows why", async function () {
+    window.__assets.failNext = "quota_or_state";
+    await pickFiles("4", [png()]);
+    ok(/storage is full/.test($(".img-msg", card("4")).textContent), $(".img-msg", card("4")).textContent);
+    eq(imagesOf("4").length, 0);
+  });
+  await test("dropping an image on a card adds it", async function () {
+    var dt = new DataTransfer(); dt.items.add(png("dropped.png"));
+    var target = $(".why", card("5"));
+    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    ok(card("5").classList.contains("img-drop"), "drop highlight");
+    target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt })); await tick(80);
+    eq(imagesOf("5").length, 1, "added by drop");
+  });
+  await test("pasting an image while editing a card adds it; pasting text does not", async function () {
+    var why = $(".why", card("2")); why.focus();
+    var dt = new DataTransfer(); dt.items.add(png("pasted.png"));
+    why.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt })); await tick(80);
+    eq(imagesOf("2").length, 1, "image pasted");
+    var t = new DataTransfer(); t.setData("text/plain", "just words");
+    var ev = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: t });
+    $(".why", card("2")).dispatchEvent(ev); await tick(40);
+    eq(window.__assets.uploads.length, 1, "text paste uploads nothing");
+    ok(!ev.defaultPrevented, "text paste left to the editor");
+    if (document.activeElement) document.activeElement.blur(); await tick(60);
+  });
+  await test("removing an image asks first, then deletes it", async function () {
+    await pickFiles("1", [png()]); var id = imagesOf("1")[0].id;
+    $(".img-x", card("1")).click(); await tick();
+    $$(".img-ask button", card("1")).filter(function (b) { return b.textContent === "Keep"; })[0].click(); await tick();
+    eq(imagesOf("1").length, 1, "Keep keeps it");
+    $(".img-x", card("1")).click(); await tick();
+    $(".img-ask .yes", card("1")).click(); await tick(60);
+    eq(imagesOf("1").length, 0, "removed from the card");
+    eq(window.__assets.deletes, [id], "file deleted");
+  });
+  await test("the viewer opens full size, steps through images and closes on Esc", async function () {
+    await pickFiles("1", [png("a.png"), png("b.png")]);
+    var thumbs = $$(".img-thumb", card("1")); eq(thumbs.length, 2, "two thumbnails");
+    thumbs[0].click(); await tick();
+    var ov = $(".lb-overlay"); ok(ov, "viewer open");
+    ok(/1 \/ 2/.test($(".lb-cap").textContent), $(".lb-cap").textContent);
+    key(document.activeElement, "ArrowRight"); await tick();
+    ok(/2 \/ 2/.test($(".lb-cap").textContent), "next image");
+    eq($(".lb-img").getAttribute("src"), "/_blob/" + imagesOf("1")[1].id);
+    key(document.activeElement, "Escape"); await tick();
+    ok(!$(".lb-overlay"), "closed");
+    ok(document.activeElement && document.activeElement.classList.contains("img-thumb"), "focus back on the thumbnail");
+  });
+  await test("malformed image ids from the board are ignored", async function () {
+    window.__remote("items/5", { images: [{ id: "../../etc/passwd" }, { id: "<img onerror=x>" }, { id: "0123456789abcdef0123456789abcdef" }] }); await tick(60);
+    var srcs = $$(".imgstrip img", card("5")).map(function (i) { return i.getAttribute("src"); });
+    eq(srcs, ["/_blob/0123456789abcdef0123456789abcdef"]);
+  });
+  await test("a card holds at most 8 images", async function () {
+    var many = []; for (var i = 0; i < 10; i++) many.push(png("p" + i + ".png"));
+    await pickFiles("4", many); await tick(150);
+    eq(imagesOf("4").length, 8, "capped at 8");
+    ok(/8 images at most/.test($(".img-msg", card("4")).textContent), "says why");
+  });
+
   // ---- accessibility ----
   await test("every card and archive button has an accessible name", async function () {
     var bad = $$(".card button, .arc-item button").filter(function (b) {
