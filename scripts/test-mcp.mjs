@@ -49,6 +49,10 @@ function startServer(home, project) {
 const work = mkdtempSync(join(tmpdir(), 'backlog-mcp-'))
 const home = join(work, 'home'), project = join(work, 'my-project')
 mkdirSync(project, { recursive: true })
+// the test process uses the same throwaway home as the server, so nothing
+// it computes (backlog file, local copy) can point at the real ~/.claude
+process.env.BACKLOG_HOME = home
+if (!mod.backlogFileFor(project).startsWith(home)) { console.error('test-mcp: refusing to run — backlog folder is outside the throwaway home'); process.exit(2) }
 const backlogs = join(home, '.claude', 'backlogs')
 const srv = startServer(home, project)
 const fileNow = () => JSON.parse(readFileSync(join(backlogs, readdirSync(backlogs).find(f => f.endsWith('.json'))), 'utf8'))
@@ -61,7 +65,7 @@ try {
     ok(/backlog_add/.test(init.result.instructions), 'instructions mention backlog_add')
     srv.notify('notifications/initialized')
     const list = await srv.request('tools/list', {})
-    eq(list.result.tools.map(t => t.name), ['backlog_add', 'backlog_inbox', 'backlog_board'])
+    eq(list.result.tools.map(t => t.name), ['backlog_add', 'backlog_inbox', 'backlog_item', 'backlog_cards', 'backlog_board'])
     eq((await srv.request('ping')).result, {})
     const older = await srv.request('initialize', { protocolVersion: '2024-11-05' })
     eq(older.result.protocolVersion, '2024-11-05', 'older client version honored')
@@ -113,7 +117,7 @@ try {
     const key = mod.projectKey('D:\\Work\\App')
     writeFileSync(join(dir2, key + '.json'), JSON.stringify({ nextId: 5, known: [], knownNames: [], inbox: [], boardUrl: null, cwd: 'D:\\Work\\App' }))
     process.env.BACKLOG_HOME = h2
-    try { eq(mod.backlogFileFor('d:/work/app/'), join(dir2, key + '.json')) } finally { delete process.env.BACKLOG_HOME }
+    try { eq(mod.backlogFileFor('d:/work/app/'), join(dir2, key + '.json')) } finally { process.env.BACKLOG_HOME = home }
   })
   await test('unknown methods and tools are refused; bad JSON gets a parse error', async () => {
     eq((await srv.request('nope/method')).error.code, -32601)
@@ -131,6 +135,70 @@ try {
     ok(mod.setup(p, { local: true }).ok)
     eq(readFileSync(join(p, '.cursor', 'rules', 'backlog.mdc'), 'utf8'), 'my edits', 'an edited rule is kept')
     eq(JSON.parse(readFileSync(join(p, '.cursor', 'mcp.json'), 'utf8')).mcpServers.backlog.command, 'node', '--local uses this file')
+  })
+  // ---- backlog_item / backlog_cards: the board's cards and images for Cursor ----
+  // a real 1x1 PNG
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+  const IMG1 = '031127c9fab4ae3c4c32c17d630d54a2', IMG2 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  function mirrorFor(proj) {
+    const d = mod.mirrorDirFor(proj)
+    if (!d.startsWith(home)) throw new Error('local copy folder outside the throwaway home: ' + d)
+    return d
+  }
+  await test('card numbers parse and print the board’s way', async () => {
+    eq([mod.parseCardNumber('23'), mod.parseCardNumber('#23'), mod.parseCardNumber('A1'), mod.parseCardNumber('#a999'), mod.parseCardNumber('B1'), mod.parseCardNumber('Z999'), mod.parseCardNumber('#AA1')],
+       [23, 23, 1000, 1998, 1999, 26973, 26974])
+    eq([mod.formatNum(999), mod.formatNum(1000), mod.formatNum(1998), mod.formatNum(1999), mod.formatNum(26974)], ['999', 'A1', 'A999', 'B1', 'AA1'])
+    eq([mod.parseCardNumber('A0'), mod.parseCardNumber('A1000'), mod.parseCardNumber('hello'), mod.parseCardNumber('')], [null, null, null, null])
+  })
+  await test('without a local copy, the card tools say how to make one', async () => {
+    ok(/no local copy/.test((await srv.call('backlog_cards')).text))
+    ok(/sync the backlog for Cursor/.test((await srv.call('backlog_item', { number: '24' })).text))
+  })
+  await test('backlog_item returns the card’s text and its images', async () => {
+    const dir = mirrorFor(project); mkdirSync(join(dir, 'images'), { recursive: true })
+    writeFileSync(join(dir, 'images', IMG1 + '.png'), PNG)
+    writeFileSync(join(dir, 'cards.json'), JSON.stringify({ board: 'https://claude.ai/artifact/Board123', syncedAt: '2026-11-07T15:00:00Z', cards: [
+      { num: 24, id: 'bmw6hlmfz3kh', name: 'A new card for test', notes: 'Match the screenshot', priority: 'important', status: 'todo', value: 3, effort: 'M', subtasks: [{ text: 'step one', done: true }], images: [{ id: IMG1 }] },
+      { num: 1000, id: 'b2', name: 'Series card', priority: 'nice', status: 'doing', images: [] },
+    ] }))
+    const r = await srv.request('tools/call', { name: 'backlog_item', arguments: { number: '#24' } })
+    const c = r.result.content
+    ok(/#24  A new card for test/.test(c[0].text) && /Match the screenshot/.test(c[0].text) && /\[x\] step one/.test(c[0].text), c[0].text)
+    const img = c.find(x => x.type === 'image')
+    ok(img, 'an image block is returned')
+    eq([img.mimeType, img.data], ['image/png', PNG.toString('base64')])
+    ok(c.some(x => x.type === 'text' && x.text.includes(join(dir, 'images', IMG1 + '.png'))), 'the file path is named too')
+    ok(c.some(x => x.type === 'text' && /Look at the images above/.test(x.text)), 'told to look first')
+    ok(/#A1  Series card/.test((await srv.call('backlog_item', { number: 'A1' })).text), 'lettered numbers work')
+    const list = (await srv.call('backlog_cards')).text
+    ok(/#24  A new card for test  \(important, to do, 1 image\)/.test(list) && /#A1  Series card/.test(list), list)
+  })
+  await test('a number not in the copy, or a missing image, is explained', async () => {
+    ok(/#99 is not among the open cards/.test((await srv.call('backlog_item', { number: '99' })).text))
+    const dir = mirrorFor(project)
+    const cards = JSON.parse(readFileSync(join(dir, 'cards.json'), 'utf8')); cards.cards[0].images.push({ id: IMG2 })
+    writeFileSync(join(dir, 'cards.json'), JSON.stringify(cards))
+    const c = (await srv.request('tools/call', { name: 'backlog_item', arguments: { number: '24' } })).result.content
+    eq(c.filter(x => x.type === 'image').length, 1, 'the present image still comes')
+    ok(c.some(x => x.type === 'text' && /1 attached image\(s\) are not in the local copy/.test(x.text)), 'the missing one is reported')
+  })
+  await test('the local copy can never point the server at other files', async () => {
+    const dir = mirrorFor(project)
+    writeFileSync(join(work, 'secret.png'), PNG)
+    writeFileSync(join(dir, 'cards.json'), JSON.stringify({ cards: [
+      { num: 30, name: 'Sneaky', images: [{ id: '../../secret' }, { id: '..\\..\\secret' }], file: join(work, 'secret.png'), path: join(work, 'secret.png') },
+    ] }))
+    const c = (await srv.request('tools/call', { name: 'backlog_item', arguments: { number: '30' } })).result.content
+    eq(c.filter(x => x.type === 'image').length, 0, 'no image read from outside images/')
+    ok(!JSON.stringify(c).includes('secret.png'), 'no outside path mentioned')
+  })
+  await test('oversized images are not sent', async () => {
+    const dir = mirrorFor(project)
+    writeFileSync(join(dir, 'images', IMG2 + '.png'), Buffer.alloc(5 * 1024 * 1024 + 10))
+    writeFileSync(join(dir, 'cards.json'), JSON.stringify({ cards: [{ num: 31, name: 'Big', images: [{ id: IMG2 }] }] }))
+    const c = (await srv.request('tools/call', { name: 'backlog_item', arguments: { number: '31' } })).result.content
+    eq(c.filter(x => x.type === 'image').length, 0)
   })
   await test('it starts when launched through npx (as Cursor does)', async () => {
     // npx runs the package's bin through a link/shim; the server must still start

@@ -229,7 +229,7 @@
     var root = document.documentElement;
     ok(root.classList.contains("mode-dark") && !root.classList.contains("mode-light"), "dark class");
     eq(rootVar("accent"), "#86cf88", "forest dark accent");
-    eq(getComputedStyle(root).getPropertyValue("--bg").trim(), "#15120d", "dark background");
+    eq(getComputedStyle(root).getPropertyValue("--bg").trim(), "#1b1f22", "dark background");
     await pick('[data-mode="light"]');
     ok(root.classList.contains("mode-light") && !root.classList.contains("mode-dark"), "light class");
     eq(rootVar("accent"), "#2e6b30", "forest light accent");
@@ -514,6 +514,59 @@
     await pickFiles("4", many); await tick(150);
     eq(imagesOf("4").length, 8, "capped at 8");
     ok(/8 images at most/.test($(".img-msg", card("4")).textContent), "says why");
+  });
+
+  // ---- the default dark look (the owner's chosen colors) ----
+  function rgb(el, prop) { return getComputedStyle(el)[prop]; }
+  function near(a, b) { // "rgb(…)" or "color(srgb …)" within 1 per channel
+    function parts(c) {
+      var m = (String(c).match(/[\d.]+/g) || []).map(Number); if (m.length < 3) return [NaN, NaN, NaN];
+      if (/^color\(/.test(c)) m = m.slice(0, 3).map(function (v) { return v * 255; });
+      return m.slice(0, 3);
+    }
+    var x = parts(a), y = parts(b); return x.every(function (v, i) { return Math.abs(v - y[i]) <= 1.01; });
+  }
+  await test("dark mode defaults to the slate page and brown cards", async function () {
+    await pick('[data-palette="warm"]'); await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
+    var cs = getComputedStyle(document.documentElement);
+    eq([cs.getPropertyValue("--bg").trim(), cs.getPropertyValue("--surface").trim(), cs.getPropertyValue("--card").trim()], ["#1b1f22", "#212528", "#624f32"]);
+    eq(rgb(document.body, "backgroundColor"), "rgb(27, 31, 34)", "page");
+    eq(rgb($(".arc-item"), "backgroundColor"), "rgb(98, 79, 50)", "archive card");
+    await themeReset();
+  });
+  await test("text on the brown cards is lifted to stay readable", async function () {
+    await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
+    eq(rgb($(".why", card("1")), "color"), "rgb(195, 188, 177)", "note text on a card");
+    eq(rgb($(".workbtn", card("1")), "color"), "rgb(185, 182, 245)", "Work on this on a card");
+    eq(rgb($("#searchInput"), "color"), rgb(document.body, "color"), "text outside cards unchanged");
+    ok(rgb($(".statl"), "color") === "rgb(167, 157, 140)", "muted text outside cards keeps its color: " + rgb($(".statl"), "color"));
+    await themeReset();
+  });
+  await test("other palettes keep plain cards in dark mode", async function () {
+    await pick('[data-palette="ocean"]'); await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
+    eq(rgb($(".arc-item"), "backgroundColor"), rgb($(".stat"), "backgroundColor"), "card = panel color, not brown");
+    eq(rgb($(".workbtn", card("1")), "color"), "rgb(92, 195, 240)", "Ocean's own accent on cards");
+    await themeReset();
+  });
+  await test("Light mode shows light cards even when Claude itself is dark", async function () {
+    document.documentElement.setAttribute("data-theme", "dark");
+    await pick('[data-mode="light"]'); $("#themeBtn").click(); await tick();
+    eq(rgb($(".arc-item"), "backgroundColor"), "rgb(255, 254, 251)", "light card");
+    eq(rgb(document.body, "backgroundColor"), "rgb(246, 244, 238)", "light page");
+    document.documentElement.removeAttribute("data-theme");
+    await themeReset();
+  });
+  await test("the default paints the same colors as the owner's saved custom colors", async function () {
+    await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
+    // looked up fresh each time: a theme change re-renders tiles and cards
+    var probes = [function () { return document.body; }, function () { return $(".stat"); }, function () { return $(".col"); }, function () { return card("4"); }, function () { return $(".arc-item"); }];
+    var paint = function () { return probes.map(function (f) { return rgb(f(), "backgroundColor"); }); };
+    var before = paint();
+    window.__remote("meta/theme", { palette: "warm", mode: "dark", custom: { dark: { bg: "#1b1f22", card: "#624f32" }, light: {} } }); await tick();
+    var after = paint();
+    before.forEach(function (b, i) { ok(near(b, after[i]), "probe " + i + ": default " + b + " vs custom " + after[i]); });
+    window.__remote("meta/theme", { palette: "warm", mode: "auto", custom: { light: {}, dark: {} } }); await tick();
+    await themeReset();
   });
 
   // ---- accessibility ----

@@ -1,6 +1,6 @@
 {
   "name": "backlog-board",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Backlog Board: a private per-project backlog. Claude Code plugin + an MCP server so Cursor's AI can capture tasks too.",
   "license": "MIT",

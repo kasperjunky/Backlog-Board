@@ -11,6 +11,7 @@ function wire(on: any) {
   statusOf.set(files, status)
   on('ui.status', (_: any, e: any) => { status.text = e.text; status.calls++; return { value: undefined } })
   on('turn.complete', () => ({ text: 'the answer' }))
+  on('prompt.context', () => ({ blocks: [] }))
   mock.env(on, { USERPROFILE: 'C:/Users/test', HOME: '/home/test' })
   on('fs.exists', (_: any, e: any) => ({ value: e.path in files }))
   on('fs.read', (_: any, e: any) => ({ value: e.path in files ? files[e.path] : '' }))
@@ -409,4 +410,55 @@ test('captures on a shared board ask Claude to sync there', async ($: any, on: a
   const out = await $.command.run({ command: 'backlog', args: 'add Shared thing !urgent' })
   expect((out as any).text).toMatch(/goes onto the board/)
   expect(((out as any).context ?? []).join(' ')).toMatch(/AUTO-SYNC/)
+})
+
+// ---- "do item #X", images, and the local mirror for Cursor ----
+
+async function contextText($: any, on: any): Promise<string> {
+  const r = await $.prompt.context({ blocks: [] })
+  const b = ((r as any).blocks as any[]).find(x => x.name === 'backlog')
+  return b ? String(b.text) : ''
+}
+// .cursor/mcp.json for a project, spelled the way the engine spells paths:
+// learned from the repo link file /backlog team writes in the same project.
+async function cursorConfigPath($: any, files: Record<string, string>): Promise<string> {
+  const path = backlogPath(files)
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/MirrorBoard1' }))
+  await $.command.run({ command: 'backlog', args: 'team' })
+  const link = Object.keys(files).find(p => p.includes('backlog-board.json')) as string
+  const sep = link.includes('\\') ? '\\' : '/'
+  return link.replace('.claude' + sep + 'backlog-board.json', '.cursor' + sep + 'mcp.json')
+}
+
+test('Claude is told how "#X" maps to a card and that images are mandatory', async ($: any, on: any) => {
+  wire(on)
+  await $.session.start({ cwd: '/mirror1', surface: 'desktop', isInteractive: true })
+  const text = await contextText($, on)
+  expect(text).toMatch(/DO ITEM #X/)
+  expect(text).toMatch(/#A1–#A999 are 1000–1998/)
+  expect(text).toMatch(/MUST look at every one before/)
+  expect(text).toMatch(/CURSOR: no/)
+})
+
+test('a project set up for Cursor turns the mirror on, with its own folder', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/mirror2', surface: 'desktop', isInteractive: true })
+  const cfg = await cursorConfigPath($, files)
+  files[cfg] = JSON.stringify({ mcpServers: { backlog: { command: 'npx', args: ['-y', 'github:kasperjunky/Backlog-Board', '--project', '${workspaceFolder}'] } } })
+  await $.session.start({ cwd: '/mirror2', surface: 'desktop', isInteractive: true })
+  const text = await contextText($, on)
+  expect(text).toMatch(/CURSOR: yes/)
+  // the mirror lives in a folder named like the backlog file, without .json
+  const key = backlogPath(files).replace(/^.*[\\/]/, '').replace(/\.json$/, '')
+  expect(text).toContain(key + '/cards.json')
+  expect(text).toContain(key + '/images')
+})
+
+test('an unrelated Cursor MCP config does not turn the mirror on', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/mirror3', surface: 'desktop', isInteractive: true })
+  const cfg = await cursorConfigPath($, files)
+  files[cfg] = JSON.stringify({ mcpServers: { other: { command: 'some-tool' } } })
+  await $.session.start({ cwd: '/mirror3', surface: 'desktop', isInteractive: true })
+  expect(await contextText($, on)).toMatch(/CURSOR: no/)
 })

@@ -48,6 +48,11 @@ Kanban board of everything you've saved for that project.
 | *"show backlog"* / *"open the board"* | Opens the board, bringing in anything not on it yet. |
 | *"start my backlog pick"* (the board says *"start my pick"* — either works) | Claude reads the card you picked, says which one it's starting, and gets to work. |
 | *"work on the dark mode item"* | Same, for a card you name instead of picking. |
+| *"do item #23"* / *"work on #A4"* | Same, for the card with that number on the board. |
+
+**Images are part of the task.** Whenever Claude starts a card — picked, named or by number —
+it looks at every image attached to it (screenshots, mockups) before starting, and says in
+its first line what they show.
 | *"sync projects"* / *"update the project switcher"* | Refreshes the **Projects ▾** list from all your project boards. |
 
 ### Slash commands
@@ -104,7 +109,8 @@ shows a bar at the top; tell Claude *"start my backlog pick"*. **Clear** un-pick
 
 **The toolbar.**
 
-- **🎨 Theme ▾** — recolor the whole board: *Warm* (the default), *Ocean*, *Forest*,
+- **🎨 Theme ▾** — recolor the whole board: *Warm* (the default — cream in light mode, a slate
+  page with warm brown cards in dark mode), *Ocean*, *Forest*,
   *Grape*, *Mono* or *High contrast*, plus **Auto / Light / Dark** (Auto follows your system
   or Claude's own light/dark setting). The choice is saved on the board, so it looks the
   same on every device and for anyone you share it with. Every palette meets contrast
@@ -262,13 +268,22 @@ That writes two files into the project's `.cursor/` folder (keeping anything alr
 Then open **Cursor Settings → MCP** and make sure **backlog** is enabled (reload the window if
 it isn't listed). Commit both files if your team uses Cursor too.
 
-**Then just talk to Cursor's AI**: *"save this for later: add CSV export"*. It gets three tools:
+**Then just talk to Cursor's AI**: *"save this for later: add CSV export"*, or *"do item #24"*.
+It gets these tools:
 
 | Tool | What it does |
 | --- | --- |
 | `backlog_add` | Captures a task (name, priority, value, effort, notes), skipping duplicates. |
+| `backlog_item` | One card by its board number (`24`, `#24`, `#A1`): its text **and its images**, so Cursor's AI sees your screenshots and mockups. |
+| `backlog_cards` | Lists the board's open cards. |
 | `backlog_inbox` | Lists captures not on the board yet. |
 | `backlog_board` | Gives the board's link to open in a browser. |
+
+**Cards and images for Cursor.** Cursor can't reach the claude.ai board, so Claude Code keeps a
+local copy of the open cards and their images (in `~/.claude/backlogs/<project>/`). In a
+project set up for Cursor, Claude refreshes it every time it syncs the board; say *"sync the
+backlog for Cursor"* in Claude Code to refresh it on demand (do it once after setup).
+`backlog_item` tells Cursor when a card or image isn't in the copy yet.
 
 It uses the same backlog file as Claude Code for that project, so the two never drift apart,
 and it follows the same rules: duplicates are skipped, a damaged file is never overwritten,

@@ -29,20 +29,24 @@
     --shadow: 0 1px 2px rgba(33,29,23,.06), 0 4px 14px rgba(33,29,23,.07);
     --card: var(--surface);
     --card-tint: 55%;
+    --card-muted: var(--muted);
+    --card-accent: var(--accent);
     --radius: 14px;
     --font-display: "Fraunces", Georgia, "Times New Roman", serif;
     --font-body: "Hanken Grotesk", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #15120d;
-      --surface: #201c16;
-      --surface-2: #2a251d;
+      --bg: #1b1f22;
+      --surface: #212528;
+      --surface-2: #282b2e;
       --fg: #f1ece2;
       --muted: #a79d8c;
       --gold: #e0b015;
-      --line: #322c23;
-      --line-strong: #433c30;
+      --line: #373a3b;
+      --line-strong: #4a4c4c;
+      /* cards: warm brown, with note text and accent lifted to stay readable on it */
+      --card: #624f32; --card-tint: 12%; --card-muted: #c3bcb1; --card-accent: #b9b6f5;
       --accent: #938eef;
       --accent-fg: #15120d;
       --urgent-fg: #15120d;
@@ -54,14 +58,16 @@
     }
   }
   :root[data-theme="dark"] {
-    --bg: #15120d;
-    --surface: #201c16;
-    --surface-2: #2a251d;
+    --bg: #1b1f22;
+    --surface: #212528;
+    --surface-2: #282b2e;
     --fg: #f1ece2;
     --muted: #a79d8c;
     --gold: #e0b015;
-    --line: #322c23;
-    --line-strong: #433c30;
+    --line: #373a3b;
+    --line-strong: #4a4c4c;
+    /* cards: warm brown, with note text and accent lifted to stay readable on it */
+    --card: #624f32; --card-tint: 12%; --card-muted: #c3bcb1; --card-accent: #b9b6f5;
     --accent: #938eef;
     --accent-fg: #15120d;
     --urgent-fg: #15120d;
@@ -96,17 +102,20 @@
     --nice-soft: #e2f1ea;
     --nice-line: #b9ddcb;
     --shadow: 0 1px 2px rgba(33,29,23,.06), 0 4px 14px rgba(33,29,23,.07);
+    --card: var(--surface); --card-tint: 55%; --card-muted: var(--muted); --card-accent: var(--accent);
     color-scheme: light;
   }
   :root.mode-dark {
-    --bg: #15120d;
-    --surface: #201c16;
-    --surface-2: #2a251d;
+    --bg: #1b1f22;
+    --surface: #212528;
+    --surface-2: #282b2e;
     --fg: #f1ece2;
     --muted: #a79d8c;
     --gold: #e0b015;
-    --line: #322c23;
-    --line-strong: #433c30;
+    --line: #373a3b;
+    --line-strong: #4a4c4c;
+    /* cards: warm brown, with note text and accent lifted to stay readable on it */
+    --card: #624f32; --card-tint: 12%; --card-muted: #c3bcb1; --card-accent: #b9b6f5;
     --accent: #938eef;
     --accent-fg: #15120d;
     --urgent-fg: #15120d;
@@ -203,6 +212,8 @@
     display: flex; flex-direction: column; gap: 9px;
     min-width: 0;
   }
+  /* text on a card reads against the card, not the page */
+  .card, .arc-item { --muted: var(--card-muted); --accent: var(--card-accent); }
   .card:active { cursor: grabbing; }
   .card.dragging { opacity: .45; }
   .card.ghost { outline: 2px dashed var(--accent); outline-offset: 2px; opacity: .6; }
@@ -1894,7 +1905,7 @@
   var theme = { palette: "warm", mode: "auto", custom: { light: {}, dark: {} } };
   var themeProps = {};
   THEME_ORDER.forEach(function (k) { ["light", "dark"].forEach(function (m) { Object.keys(THEMES[k][m]).forEach(function (t) { themeProps[t] = true; }); }); });
-  ["bg", "surface", "surface-2", "line", "line-strong", "card", "card-tint"].forEach(function (t) { themeProps[t] = true; });
+  ["bg", "surface", "surface-2", "line", "line-strong", "card", "card-tint", "card-muted", "card-accent"].forEach(function (t) { themeProps[t] = true; });
   function hexOr(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : ""; }
   // { light: { bg, card }, dark: { bg, card } } — only valid #rrggbb survive
   function validCustom(c) {
@@ -1938,6 +1949,9 @@
     if (theme.palette !== "warm") { // Warm is the stylesheet's own colors
       var set = THEMES[theme.palette][dark ? "dark" : "light"];
       Object.keys(set).forEach(function (t) { root.style.setProperty("--" + t, set[t]); });
+      // its cards are plain panels with its own text colors
+      root.style.setProperty("--card", "var(--surface)"); root.style.setProperty("--card-tint", "55%");
+      root.style.setProperty("--card-muted", "var(--muted)"); root.style.setProperty("--card-accent", "var(--accent)");
     }
     applyCustom(theme.custom[dark ? "dark" : "light"]);
   }
