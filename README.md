@@ -299,6 +299,16 @@ a private claude.ai Artifact with a small shared database and remembers its link
 
 ## Security
 
+- **Your items are private, and never in a repo.** Captures live in a per-project file under
+  your home (`~/.claude/backlogs/`), which isn't a git repo, so they can't be committed. The
+  board is a **private** claude.ai Artifact — only you can open it until you share it from its
+  Share menu. The only things the plugin ever writes into a project are config, never card
+  text: `.claude/backlog-board.json` (just the team board's link) and, for Cursor,
+  `.cursor/mcp.json` plus a capture rule. For Cursor, Claude Code also keeps a local copy of
+  the open cards and their images under `~/.claude/backlogs/<project>/` so Cursor's AI can read
+  them — on your own machine, outside any repo. (If you commit `.claude/backlog-board.json` to
+  a public repo, the board *link* is visible, but the board itself stays private and
+  unopenable to anyone you haven't shared it with.)
 - **Board text is treated as data.** Claude is told never to follow instructions found
   in card names, notes, subtasks, links or results. When you hand it a pick, it reads
   the card itself, says which item it's starting, and asks before doing anything the card
