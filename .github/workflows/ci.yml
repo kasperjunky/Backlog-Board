@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The plugin and the Cursor MCP server have zero npm dependencies,
+      # so there is nothing to install — the test scripts run on plain Node.
+
+      - name: MCP server tests
+        run: node scripts/test-mcp.mjs
+
+      - name: Board tests (headless Chrome)
+        run: node scripts/test-board.mjs
+        env:
+          # Google Chrome ships preinstalled on the ubuntu-latest runner.
+          CHROME_PATH: /usr/bin/google-chrome

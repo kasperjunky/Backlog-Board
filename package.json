@@ -9,5 +9,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "scripts": {
+    "test": "node scripts/test-mcp.mjs && node scripts/test-board.mjs",
+    "test:mcp": "node scripts/test-mcp.mjs",
+    "test:board": "node scripts/test-board.mjs"
   }
 }

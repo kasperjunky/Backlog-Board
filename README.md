@@ -1,5 +1,7 @@
 # Backlog Board
 
+[![CI](https://github.com/kasperjunky/Backlog-Board/actions/workflows/ci.yml/badge.svg)](https://github.com/kasperjunky/Backlog-Board/actions/workflows/ci.yml)
+
 A private, per-project backlog for Claude Code. Defer a task in plain language and
 Claude captures it; say **"show backlog"** and Claude opens a colorful drag-and-drop
 Kanban board of everything you've saved for that project.
@@ -330,6 +332,7 @@ a private claude.ai Artifact with a small shared database and remembers its link
 ## Development
 
 ```
+npm test                              # MCP + board suites (the two CI runs)
 claude plugin validate .              # manifest + hooks
 claude plugin test .                  # mod tests (tests/*.test.tsx)
 npx -p typescript tsc -p . --noEmit   # type-check (once the engine has written the types)
@@ -339,6 +342,10 @@ node scripts/build-publish.mjs        # dist/board.publish.html, the file to pub
 sh scripts/install-hooks.sh           # once: run the leak scan before every push
 sh scripts/leak-scan.sh               # or run it by hand
 ```
+
+- **CI:** [GitHub Actions](.github/workflows/ci.yml) runs the MCP and board suites (76 tests)
+  on every push and pull request to `main`. The mod tests need the `claude` CLI, so run those
+  locally with `claude plugin test .`.
 
 - **Board tests** (`tests/board/`) run `board.html` against an in-memory stand-in for the
   artifact database (`mock-db.js`), offline and in a throwaway browser profile. Set
