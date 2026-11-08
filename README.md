@@ -6,6 +6,8 @@ A private, per-project backlog for Claude Code. Defer a task in plain language a
 Claude captures it; say **"show backlog"** and Claude opens a colorful drag-and-drop
 Kanban board of everything you've saved for that project.
 
+![The Backlog Board: Urgent, Important and Nice-to-have lanes of cards, each with a value, effort, status and due date, and a "Work on this" button that hands the card back to Claude.](docs/board.png)
+
 - **Capture by talking.** Say *"save to backlog: X"* (or just defer something — "later",
   "let's do that another time") and it's filed with a priority, value, effort, and an
   optional note on why it matters, and it syncs onto the board right away. Near-duplicates
