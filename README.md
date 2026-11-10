@@ -8,6 +8,13 @@ Kanban board of everything you've saved for that project.
 
 ![The Backlog Board: Urgent, Important and Nice-to-have lanes of cards, each with a value, effort, status and due date, and a "Work on this" button that hands the card back to Claude.](docs/board.png)
 
+**Install** (two steps — [full details below](#install)):
+
+```
+/plugin marketplace add kasperjunky/Backlog-Board
+/plugin install backlog@backlog-board
+```
+
 - **Capture by talking.** Say *"save to backlog: X"* (or just defer something — "later",
   "let's do that another time") and it's filed with a priority, value, effort, and an
   optional note on why it matters, and it syncs onto the board right away. Near-duplicates
