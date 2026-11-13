@@ -60,11 +60,11 @@ Kanban board of everything you've saved for that project.
 | *"start my backlog pick"* (the board says *"start my pick"* — either works) | Claude reads the card you picked, says which one it's starting, and gets to work. |
 | *"work on the dark mode item"* | Same, for a card you name instead of picking. |
 | *"do item #23"* / *"work on #A4"* | Same, for the card with that number on the board. |
+| *"sync projects"* / *"update the project switcher"* | Refreshes the **Projects ▾** list from all your project boards. |
 
 **Images are part of the task.** Whenever Claude starts a card — picked, named or by number —
 it looks at every image attached to it (screenshots, mockups) before starting, and says in
 its first line what they show.
-| *"sync projects"* / *"update the project switcher"* | Refreshes the **Projects ▾** list from all your project boards. |
 
 ### Slash commands
 
