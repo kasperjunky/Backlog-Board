@@ -173,12 +173,13 @@ try {
     const dir = mirrorFor(project); mkdirSync(join(dir, 'images'), { recursive: true })
     writeFileSync(join(dir, 'images', IMG1 + '.png'), PNG)
     writeFileSync(join(dir, 'cards.json'), JSON.stringify({ board: 'https://claude.ai/artifact/Board123', syncedAt: '2026-11-07T15:00:00Z', cards: [
-      { num: 24, id: 'bmw6hlmfz3kh', name: 'A new card for test', notes: 'Match the screenshot', priority: 'important', status: 'todo', value: 3, effort: 'M', subtasks: [{ text: 'step one', done: true }], images: [{ id: IMG1 }] },
+      { num: 24, id: 'bmw6hlmfz3kh', name: 'A new card for test', notes: 'Match the screenshot', priority: 'important', status: 'todo', value: 3, effort: 'M', subtasks: [{ text: 'step one', done: true }], comments: [{ by: 'u_x', at: '2026-11-12T09:00:00Z', text: 'Needs the new API' }, { text: 7 }], images: [{ id: IMG1 }] },
       { num: 1000, id: 'b2', name: 'Series card', priority: 'nice', status: 'doing', images: [] },
     ] }))
     const r = await srv.request('tools/call', { name: 'backlog_item', arguments: { number: '#24' } })
     const c = r.result.content
     ok(/#24  A new card for test/.test(c[0].text) && /Match the screenshot/.test(c[0].text) && /\[x\] step one/.test(c[0].text), c[0].text)
+    ok(/Comments \(1, oldest first\):\n  - 2026-11-12: Needs the new API/.test(c[0].text), 'comments listed: ' + c[0].text)
     const img = c.find(x => x.type === 'image')
     ok(img, 'an image block is returned')
     eq([img.mimeType, img.data], ['image/png', PNG.toString('base64')])

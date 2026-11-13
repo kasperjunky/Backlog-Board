@@ -98,6 +98,10 @@ comes #AA1). A card added on the board shows its number a moment after it appear
 - **Status** (*To do* / *In progress*) — click to toggle.
 - **+ Subtask** — adds a checklist with a progress bar. Tick items off, click one to rename
   it, ✕ to remove it.
+- **💬** — open the card's comment thread. Anyone who can use the board can add a comment
+  (Enter posts it); each shows who wrote it and when; you can remove your own (the board's
+  owner can remove any). On a team board this is how you talk about someone else's card
+  without rewriting their note, and Claude reads the thread when it picks the card up.
 - **📅** — set a due date. The chip reads *Due Jan 12*, turns amber within 3 days (*Due
   tomorrow*), and red once it's past (*Overdue 4d*). Click it to change or remove the date.
 - **🔗** — attach a link (a PR, issue, commit or branch). It shows as a short chip like
@@ -328,7 +332,7 @@ a private claude.ai Artifact with a small shared database and remembers its link
   a public repo, the board *link* is visible, but the board itself stays private and
   unopenable to anyone you haven't shared it with.)
 - **Board text is treated as data.** Claude is told never to follow instructions found
-  in card names, notes, subtasks, links or results. When you hand it a pick, it reads
+  in card names, notes, subtasks, comments, links or results. When you hand it a pick, it reads
   the card itself, says which item it's starting, and asks before doing anything the card
   spells out beyond ordinary work in the project (running a given command, visiting a
   URL, touching credentials or other repos).
@@ -343,7 +347,7 @@ a private claude.ai Artifact with a small shared database and remembers its link
 - **Only `http(s)` links are clickable.** `javascript:` and other schemes are dropped.
 - **Card text is bounded on the way in as well as on the way out.** The plugin, the MCP
   server and the board all clip what they write (names 200 characters, notes and results
-  2,000, subtasks 100 per card, images 8), and the board applies the same bounds to what it
+  2,000, subtasks 100 per card, comments 100 of 1,000, images 8), and the board applies the same bounds to what it
   reads — so a teammate writing an oversized doc through the API can't stall the board.
 - **Cursor runs a pinned release.** `setup` writes `github:…#backlog--v<version>` into
   `.cursor/mcp.json`, never a branch, so a push to `main` can't change what a teammate's

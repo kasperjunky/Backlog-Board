@@ -7,6 +7,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Comments on cards.** 💬 opens a per-card thread: anyone who can use the board posts
+  a line (author and date shown; remove your own, the owner any); links inside are
+  clickable; the Markdown export lists them. Claude reads a card's comments when it
+  starts the card, and the Cursor copy (`backlog_item`) includes them. Teammates can
+  now talk about a card without rewriting its note.
 - **`/backlog done #X [what was done]` and `/backlog note #X <text>`.** Close a card
   (with an optional ✓ result line) or add to its note from the terminal; the command
   checks the card number and hands Claude an exact instruction for its next message,

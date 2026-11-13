@@ -54,6 +54,13 @@
     eq($(".why", c).textContent.length, 2000, "notes clipped to 2000");
     eq($$(".ck-row", c).length, 100, "subtasks capped at 100");
     eq($(".ck-row .ck-t", c).textContent.length, 200, "subtask text clipped to 200");
+    var cms = []; for (var j = 0; j < 150; j++) cms.push({ by: "nobody", at: 12, text: "c" + j + " " + big });
+    window.__remote("items/5", { comments: cms }); await tick(60);
+    $(".cmtbtn", card("5")).click(); await tick();
+    eq($$(".cm", card("5")).length, 100, "comments capped at 100 (newest kept)");
+    ok(/^c50 /.test($(".cm .cm-t", card("5")).textContent), "the oldest 50 were dropped: " + $(".cm .cm-t", card("5")).textContent.slice(0, 12));
+    eq($(".cm .cm-t", card("5")).textContent.length, 1000, "comment text clipped to 1000");
+    eq($(".cm .cm-h b", card("5")).textContent, "Someone", "an invalid author id shows as Someone");
   });
   await test("saving a javascript: link is refused", async function () {
     $(".linkbtn", card("1")).click(); await tick();
@@ -420,6 +427,45 @@
     ok($(".assignadd", card("1")) && !$("#mineFilter").hidden, "team controls on");
     window.__remote("meta/team", { enabled: false }); await tick();
     eq($$(".assignadd").length, 0, "off again");
+  });
+
+  // ---- comments ----
+  await test("a comment thread: post, see who wrote what, remove", async function () {
+    var P2 = window.__people;
+    eq($(".cmtbtn", card("1")).getAttribute("aria-label"), "Comments (0)", "empty count");
+    $(".cmtbtn", card("1")).click(); await tick();
+    var th = $(".thread", card("1")); ok(th, "thread opened");
+    ok(/No comments yet/.test(th.textContent), "empty state");
+    eq(document.activeElement && document.activeElement.getAttribute("aria-label"), "Add a comment", "focus in the input");
+    var inp = $(".thread input", card("1")); inp.value = "  Blocked on the API change  https://example.com/x  ";
+    key(inp, "Enter"); await tick();
+    var w = window.__writes.filter(function (x) { return x[1] === "items/1" && x[2] && x[2].comments; }).pop();
+    ok(w && w[2].comments.length === 1 && w[2].comments[0].by === P2.me && w[2].comments[0].text === "Blocked on the API change https://example.com/x" && /^\d{4}-\d{2}-\d{2}T/.test(w[2].comments[0].at), "written: " + JSON.stringify(w && w[2]));
+    var cm = $(".cm", card("1")); ok(cm, "rendered");
+    eq($(".cm-h b", cm).textContent, "You", "my own name");
+    ok($(".cm-t a.rlink", cm) && $(".cm-t a.rlink", cm).getAttribute("href") === "https://example.com/x", "links in comments are clickable");
+    eq($(".cmtbtn", card("1")).getAttribute("aria-label"), "Comments (1)", "count on the button");
+    ok($(".thread input", card("1")), "input stays for the next comment");
+    // a teammate's comment arrives (once you stop typing): named, and (as the owner) removable
+    if (document.activeElement) document.activeElement.blur();
+    window.__remote("items/1", { comments: w[2].comments.concat([{ by: P2.ana, at: "2026-11-12T09:00:00.000Z", text: "<b>I can take this</b>" }]) }); await tick(80);
+    var rows = $$(".cm", card("1")); eq(rows.length, 2, "both shown");
+    eq($(".cm-h b", rows[1]).textContent, "Ana Lee", "teammate named");
+    eq($(".cm-t", rows[1]).textContent, "<b>I can take this</b>", "shown as text, never HTML");
+    eq($$(".cm-t b", card("1")).length, 0, "no markup injected");
+    $(".cm-x", rows[0]).click(); await tick();
+    var w2 = window.__writes.filter(function (x) { return x[1] === "items/1" && x[2] && x[2].comments; }).pop();
+    eq(w2[2].comments.map(function (c) { return c.text; }), ["<b>I can take this</b>"], "mine removed, Ana's kept");
+    $(".cmtbtn", card("1")).click(); await tick();
+    ok(!$(".thread", card("1")), "thread closes again");
+  });
+  await test("the Markdown export lists comments under the card", async function () {
+    window.__remote("items/2", { comments: [{ by: window.__people.ana, at: "2026-11-12T09:00:00.000Z", text: "Needs the new API" }] }); await tick(80);
+    $("#exportMd").click(); await tick(80);
+    var ta = $(".exp-ta"); ok(ta, "the export fallback shows the Markdown");
+    var md = ta.value;
+    ok(/- 💬 Ana Lee \(2026-11-12\): Needs the new API/.test(md), "export line: " + md.split("\n").filter(function (l) { return /💬/.test(l); }).join(" | "));
+    $$(".exp-btn").filter(function (b) { return b.textContent === "Close"; })[0].click(); await tick();
   });
 
   // ---- running numbers ----

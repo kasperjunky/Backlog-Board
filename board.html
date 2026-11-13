@@ -306,6 +306,23 @@
 
   .worklane { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 1px; }
   .card .linkbtn.on { color: var(--accent); }
+  .card .cmtbtn { width: auto; padding: 0 6px; gap: 3px; font-size: 13px; }
+  .card .cmtbtn .cnt { font-size: 11px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .card .cmtbtn.on, .card .cmtbtn.on .cnt { color: var(--accent); }
+  /* comment thread */
+  .card .thread { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; border-top: 1px dashed var(--line); margin-top: 2px; }
+  .card .thread .cm { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; line-height: 1.4; }
+  .card .thread .cm-h { display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: var(--muted); }
+  .card .thread .cm-h b { color: var(--fg); font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .thread .cm-h .cm-x { margin-left: auto; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; padding: 1px 3px; border-radius: 4px; opacity: .55; }
+  .card .thread .cm-h .cm-x:hover { opacity: 1; color: var(--urgent); }
+  .card .thread .cm-t { word-break: break-word; }
+  .card .thread .cm-t .rlink { color: var(--accent); }
+  .card .thread .cm-add input { width: 100%; font: inherit; font-size: 12px; border: 1px dashed var(--line-strong); background: transparent; color: var(--fg); border-radius: 6px; padding: 4px 7px; }
+  .card .thread .cm-add input:focus { outline: none; border-style: solid; border-color: var(--accent); }
+  .card .thread .cm-add input::placeholder { color: var(--muted); }
+  .card .thread .cm-empty { font-size: 11.5px; color: var(--muted); }
+  .card.collapsed .thread { display: none; }
   .card .linkchip { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 7px; padding: 3px 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .linkchip:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .card .duechip { font: inherit; font-size: 12px; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 7px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
@@ -599,7 +616,10 @@
   function resolveNames() {
     if (!userApi) return;
     var want = {};
-    state.items.forEach(function (i) { [i.createdBy, i.assignee].forEach(function (id) { if (id && !namesAsked[id]) want[id] = true; }); });
+    state.items.forEach(function (i) {
+      [i.createdBy, i.assignee].forEach(function (id) { if (id && !namesAsked[id]) want[id] = true; });
+      (i.comments || []).forEach(function (c) { if (c.by && !namesAsked[c.by]) want[c.by] = true; });
+    });
     var ids = Object.keys(want); if (!ids.length) return;
     ids.forEach(function (id) { namesAsked[id] = true; });
     userApi.profiles(ids).then(function (ps) {
@@ -626,7 +646,7 @@
   // this page all clip), but a teammate can write a doc through the API
   // directly, so the same bounds hold on the way in: an oversized name, note
   // or subtask list renders clipped instead of stalling the board.
-  var TEXT_MAX = { name: 200, notes: 2000, result: 2000, link: 2000, subtask: 200 }, SUBTASKS_MAX = 100;
+  var TEXT_MAX = { name: 200, notes: 2000, result: 2000, link: 2000, subtask: 200, comment: 1000 }, SUBTASKS_MAX = 100, COMMENTS_MAX = 100;
   function clipText(v, max) {
     var s = typeof v === "string" ? v : "";
     return s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -681,6 +701,55 @@
     var t = document.createElement("span"); t.className = "rt"; appendLinkified(t, text);
     d.appendChild(k); d.appendChild(t);
     return d;
+  }
+  // ---- comments: [{ by, at, text }] on a card; anyone who can write may add
+  // one, and remove their own (the board's owner any). Kept to COMMENTS_MAX,
+  // newest last; what another person wrote is shown as text, never as HTML.
+  function cleanComments(list) {
+    var out = [];
+    (Array.isArray(list) ? list : []).forEach(function (c) {
+      if (!c || typeof c.text !== "string") return;
+      var t = clipText(c.text.replace(/\s+/g, " ").trim(), TEXT_MAX.comment);
+      if (!t) return;
+      out.push({ by: validUserId(c.by), at: typeof c.at === "string" ? c.at.slice(0, 40) : "", text: t });
+    });
+    return out.slice(-COMMENTS_MAX);
+  }
+  function whenLabel(at) {
+    var d = safeDate(String(at || "").slice(0, 10));
+    return d ? fmtDate(d) : "";
+  }
+  var threadOpen = {};            // card id -> true while its comment thread is shown (this view only)
+  function makeThread(it) {
+    var wrap = document.createElement("div"); wrap.className = "thread"; wrap.setAttribute("role", "group"); wrap.setAttribute("aria-label", "Comments"); wrap.tabIndex = -1;
+    var list = it.comments || [];
+    if (!list.length) { var e = document.createElement("div"); e.className = "cm-empty"; e.textContent = "No comments yet."; wrap.appendChild(e); }
+    list.forEach(function (c, i) {
+      var row = document.createElement("div"); row.className = "cm";
+      var h = document.createElement("div"); h.className = "cm-h";
+      var who = document.createElement("b"); who.textContent = c.by ? personName(c.by) : "Someone"; h.appendChild(who);
+      var w = whenLabel(c.at); if (w) { var ts = document.createElement("span"); ts.textContent = w; ts.title = c.at; h.appendChild(ts); }
+      if (state.canWrite && ((c.by && c.by === me.id) || me.isOwner)) {
+        var x = document.createElement("button"); x.type = "button"; x.className = "cm-x"; x.textContent = "✕"; x.title = "Remove comment"; x.setAttribute("aria-label", "Remove this comment");
+        x.addEventListener("click", function () { patch(it.id, { comments: list.filter(function (_, k) { return k !== i; }) }); });
+        h.appendChild(x);
+      }
+      var t = document.createElement("div"); t.className = "cm-t"; appendLinkified(t, c.text);
+      row.appendChild(h); row.appendChild(t); wrap.appendChild(row);
+    });
+    if (state.canWrite) {
+      var add = document.createElement("div"); add.className = "cm-add";
+      var inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "Comment, then Enter"; inp.maxLength = TEXT_MAX.comment; inp.setAttribute("aria-label", "Add a comment");
+      inp.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        var v = inp.value.replace(/\s+/g, " ").trim(); if (!v) return;
+        patch(it.id, { comments: list.concat([{ by: me.id || null, at: new Date().toISOString(), text: v }]).slice(-COMMENTS_MAX) });
+        var f = document.querySelector('.card[data-id="' + it.id + '"] .thread input'); if (f) f.focus();
+        announce("Comment added to “" + it.name + "”.");
+      });
+      add.appendChild(inp); wrap.appendChild(add);
+    }
+    return wrap;
   }
   function byId(id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return state.items[i]; return null; }
   function active() { return state.items.filter(function (i) { return i.status !== "done"; }); }
@@ -1044,6 +1113,17 @@
     var cdot = document.createElement("span"); cdot.className = "cdot"; cdot.style.background = it.color || "var(--" + it.priority + ")";
     colorbtn.appendChild(cdot);
     colorbtn.addEventListener("click", function () { openPalette(li, it); });
+    var ncm = (it.comments || []).length;
+    var cmtbtn = document.createElement("button"); cmtbtn.className = "iconbtn cmtbtn" + (threadOpen[it.id] ? " on" : ""); cmtbtn.type = "button";
+    cmtbtn.title = ncm ? ncm + (ncm === 1 ? " comment" : " comments") : "Comments"; cmtbtn.setAttribute("aria-label", "Comments (" + ncm + ")"); cmtbtn.setAttribute("aria-expanded", threadOpen[it.id] ? "true" : "false");
+    cmtbtn.appendChild(document.createTextNode("💬"));
+    if (ncm) { var cnt = document.createElement("span"); cnt.className = "cnt"; cnt.textContent = ncm; cmtbtn.appendChild(cnt); }
+    cmtbtn.addEventListener("click", function () {
+      if (threadOpen[it.id]) delete threadOpen[it.id]; else threadOpen[it.id] = true;
+      render();
+      var c0 = document.querySelector('.card[data-id="' + it.id + '"]');
+      var f = c0 && (threadOpen[it.id] ? (c0.querySelector(".thread input") || c0.querySelector(".thread")) : c0.querySelector(".cmtbtn")); if (f && f.focus) f.focus();
+    });
     var linkbtn = document.createElement("button"); linkbtn.className = "iconbtn linkbtn" + (it.link ? " on" : ""); linkbtn.type = "button"; linkbtn.title = it.link ? "Edit link" : "Attach a PR / branch / commit link"; linkbtn.textContent = "🔗"; linkbtn.setAttribute("aria-label", linkbtn.title);
     linkbtn.addEventListener("click", function () { openLinkEdit(li, it); });
     var done = document.createElement("button");
@@ -1055,7 +1135,7 @@
     var movebtn = document.createElement("button"); movebtn.className = "iconbtn movebtn" + (moverId === it.id ? " on" : ""); movebtn.type = "button"; movebtn.textContent = "⇅";
     movebtn.dataset.act = "movebtn"; movebtn.title = "Move card (or Alt+↑ / Alt+↓)"; movebtn.setAttribute("aria-label", "Move card"); movebtn.setAttribute("aria-expanded", moverId === it.id ? "true" : "false");
     movebtn.addEventListener("click", function () { moverId = moverId === it.id ? null : it.id; refocus = { id: it.id, act: moverId ? "up" : "movebtn" }; render(); });
-    row1.appendChild(movebtn); actions.appendChild(colorbtn); actions.appendChild(linkbtn); actions.appendChild(done); actions.appendChild(del);
+    row1.appendChild(movebtn); actions.appendChild(colorbtn); actions.appendChild(cmtbtn); actions.appendChild(linkbtn); actions.appendChild(done); actions.appendChild(del);
     meta.appendChild(actions);
 
     // work-on-this lane (hand the card to Claude)
@@ -1130,6 +1210,7 @@
     li.appendChild(meta);
     if (moverId === it.id) li.appendChild(makeMover(it));
     li.appendChild(worklane);
+    if (threadOpen[it.id]) li.appendChild(makeThread(it));
     if (assignOpenId === it.id && teamMode()) li.appendChild(makeAssign(it));
 
     li.addEventListener("dragstart", function (e) {
@@ -1773,6 +1854,7 @@
         if (safeUrl(it.link)) out.push("  - 🔗 " + safeUrl(it.link));
         if (cleanImages(it.images).length) out.push("  - 🖼 " + cleanImages(it.images).length + " image" + (cleanImages(it.images).length === 1 ? "" : "s"));
         (it.subtasks || []).forEach(function (s) { out.push("  - [" + (s.done ? "x" : " ") + "] " + s.text); });
+        (it.comments || []).forEach(function (c) { out.push("  - 💬 " + (c.by ? personName(c.by) : "Someone") + (whenLabel(c.at) ? " (" + String(c.at).slice(0, 10) + ")" : "") + ": " + c.text); });
       });
       out.push("");
     });
@@ -2202,6 +2284,7 @@
             assignee: validUserId(data.assignee),
             num: typeof data.num === "number" && data.num > 0 ? Math.floor(data.num) : 0,
             images: cleanImages(data.images),
+            comments: cleanComments(data.comments),
             subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).slice(0, SUBTASKS_MAX).map(function (s) { return { text: clipText(s.text, TEXT_MAX.subtask), done: s.done === true }; }) : [],
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
