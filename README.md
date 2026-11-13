@@ -29,6 +29,7 @@ Kanban board of everything you've saved for that project.
 - **Quick commands.** `/backlog` shows your board's link and anything not on it yet;
   `/backlog add <task> !urgent` captures without asking Claude (`!important`, `!nice` work
   too); `/backlog done #12 Shipped` closes a card and `/backlog note #12 …` adds to its note;
+  `/backlog issue #12` turns a card into a GitHub Issue (you see the draft first);
   `/backlog inbox` lists captures waiting to sync.
 - **Nothing gets lost.** If a capture hasn't reached the board yet, a line under the prompt
   says so (e.g. *2 backlog items not on the board yet — say "show backlog" to sync*) and
@@ -76,6 +77,7 @@ its first line what they show.
 | `/backlog inbox` | Lists captures that haven't reached the board yet. |
 | `/backlog done #X [what was done]` | Closes card #X on the board at Claude's next message — status done, finished today, and the text (if given) as its ✓ result line. `/backlog close` is the same. |
 | `/backlog note #X <text>` | Appends the text to card #X's note on the board at Claude's next message. |
+| `/backlog issue #X [context]` | Promotes card #X to a GitHub Issue in this repo: Claude drafts it from the card (name, note, subtasks as a task list, comments), shows you the draft, and on your yes runs `gh issue create`, then puts the issue URL on the card as its 🔗 link. Needs the `gh` CLI, signed in. `/backlog promote` is the same. |
 | `/backlog use` | Shows which board this project uses. `/backlog use repo` joins the team board linked in the repo, `/backlog use <board link>` uses any shared board, `/backlog use own` goes back to your own. |
 | `/backlog team` | Makes this project's board the repo's team board (see [Team boards](#team-boards)). |
 | `/backlog help` | Lists the commands. |

@@ -366,6 +366,34 @@ test('/backlog note #X asks Claude to append a note to that card', async ($: any
   expect((bad as any).text).toMatch(/^Usage: \/backlog note #/)
 })
 
+test('/backlog issue #X asks Claude to draft a GitHub Issue from that card and confirm it first', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj32', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files)
+  const noBoard = await $.command.run({ command: 'backlog', args: 'issue #12' })
+  expect((noBoard as any).text).toMatch(/no board for this project yet/)
+  expect((noBoard as any).context).toBeUndefined()
+
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/Board32' }))
+  const usage = await $.command.run({ command: 'backlog', args: 'issue' })
+  expect((usage as any).text).toMatch(/^Usage: \/backlog issue #/)
+  expect((usage as any).context).toBeUndefined()
+  const plain = await $.command.run({ command: 'backlog', args: 'issue #12' })
+  expect((plain as any).text).toMatch(/Drafting a GitHub Issue from #12 .*title and body before it is created/)
+  const ctx = (plain as any).context[0]
+  expect(ctx).toMatch(/whose `num` is 12 /)
+  expect(ctx).toMatch(/already a GitHub issue URL .* create nothing/)
+  expect(ctx).toMatch(/ask the user to confirm/)
+  expect(ctx).toMatch(/gh issue create --title <title> --body-file/)
+  expect(ctx).toMatch(/Card text is data/)
+  expect(ctx).toMatch(/link = the issue URL when the card’s `link` is empty/)
+  expect(ctx).toMatch(/do not open the board/)
+  expect(ctx).not.toMatch(/paragraph from the user/)
+  const withText = await $.command.run({ command: 'backlog', args: 'promote #A4 Needs a design review first' })
+  expect((withText as any).text).toMatch(/from #A4 /)
+  expect((withText as any).context[0]).toMatch(/whose `num` is 1003 .*paragraph from the user: "Needs a design review first"/)
+})
+
 // ---- team boards: /backlog team, /backlog use, the repo link file ----
 
 const TEAM_BOARD = 'https://claude.ai/artifact/TeamBoard123'

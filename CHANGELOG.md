@@ -7,6 +7,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **`/backlog issue #X [context]` promotes a card to a GitHub Issue.** Opt-in, per
+  card: Claude reads the card, drafts the issue (name as title; note, subtasks as a
+  task list and comments as the body, plus any context you add), shows you the draft,
+  and on your yes creates it with `gh issue create` in this repo and sets the issue
+  URL as the card's 🔗 link (or appends it to the note when a link is already there).
+  A card that already links an issue is left alone. `/backlog promote` is an alias.
 - **N adds a card from the keyboard.** Press N (outside a text field) and the new-card
   box opens in the lane you're on — the lane of the focused card or +; elsewhere, the
   lane you last added to, or Urgent. Enter adds, Esc closes. Pairs with Alt+↑ / Alt+↓.
