@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-13
+
 ### Added
 - **`/backlog issue #X [context]` promotes a card to a GitHub Issue.** Opt-in, per
   card: Claude reads the card, drafts the issue (name as title; note, subtasks as a
@@ -108,6 +110,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   board text is treated as data (never instructions), inputs are validated,
   and backlog data stays private to `~/.claude/backlogs/`.
 
+[0.10.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.0
 [0.9.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.9.0
 [0.8.0]: https://github.com/kasperjunky/Backlog-Board/commits/main
 [0.5.0]: https://github.com/kasperjunky/Backlog-Board/commits/main
