@@ -7,6 +7,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **`/backlog done #X [what was done]` and `/backlog note #X <text>`.** Close a card
+  (with an optional ✓ result line) or add to its note from the terminal; the command
+  checks the card number and hands Claude an exact instruction for its next message,
+  so nothing is left to prose. `/backlog close` is an alias of `done`.
 - **Undo for deleted cards.** ✕ deletes a card at once (no more "Delete? / Keep"
   step) and a toast offers Undo for 10 seconds; several deletes stack into one
   toast, Undo writes each card back as it was (same number, images, result), and

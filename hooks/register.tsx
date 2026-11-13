@@ -408,6 +408,35 @@ export const register: Register = on => {
       return { text, context }
     }
 
+    if (cmd.kind === 'done' || cmd.kind === 'note') {
+      const board = boardOf(file)
+      if (!board) return { text: 'There’s no board for this project yet, so there are no cards to ' + (cmd.kind === 'done' ? 'close' : 'annotate') + '. Say "show backlog" to create it.' }
+      if (cmd.num === null) {
+        return { text: cmd.kind === 'done'
+          ? 'Usage: /backlog done #<card number> [what was done] — e.g. /backlog done #12 Shipped in v0.9.1'
+          : 'Usage: /backlog note #<card number> <text> — e.g. /backlog note #12 Blocked on the API change' }
+      }
+      if (cmd.kind === 'note' && !cmd.text) return { text: 'Usage: /backlog note #' + cmd.label + ' <text> — the note to add is missing.' }
+      const ref = 'the BOARD card whose `num` is ' + cmd.num + ' (shown as #' + cmd.label + '; a card without `num` uses its numeric doc id)'
+      $.ui.status(statusLine(file, ''))
+      if (cmd.kind === 'done') {
+        return {
+          text: 'Closing #' + cmd.label + ' on the board at your next message' + (cmd.result ? ' with the result “' + cmd.result + '”.' : '.'),
+          context: ['The user ran /backlog done #' + cmd.label + '. At your next turn, before anything else: read ' + ref +
+            '. If no card has that number, say so and list the closest open ones. Otherwise update that `items` doc with ' +
+            'status "done" and finishedAt = today' + (cmd.result ? ', and result = ' + JSON.stringify(cmd.result) + ' (replacing any result)' : ' (keep its result as it is)') +
+            ' — a pinned write; do not open the board. Then confirm in one line (the card’s number and name) and continue with what the user asks.'],
+        }
+      }
+      return {
+        text: 'Adding that note to #' + cmd.label + ' on the board at your next message.',
+        context: ['The user ran /backlog note #' + cmd.label + '. At your next turn, before anything else: read ' + ref +
+          '. If no card has that number, say so and list the closest open ones. Otherwise update that `items` doc so notes = its current notes, ' +
+          'then " — " when it already has notes, then ' + JSON.stringify(cmd.text) + ' (one line; a pinned write; do not open the board). ' +
+          'Then confirm in one line (the card’s number and name) and continue with what the user asks.'],
+      }
+    }
+
     if (cmd.kind === 'team') {
       const board = file.useBoardUrl ?? file.boardUrl
       if (!board) return { text: 'There’s no board for this project yet. Say "show backlog" to create it, then run /backlog team.' }
@@ -458,10 +487,12 @@ const BACKLOG_HELP =
   '/backlog — where your board is, and what is waiting to sync\n' +
   '/backlog add <task> [!urgent | !important | !nice] — capture a task right now\n' +
   '/backlog inbox — list captures not on the board yet\n' +
+  '/backlog done #X [what was done] — close card #X on the board (at your next message)\n' +
+  '/backlog note #X <text> — add a note to card #X on the board (at your next message)\n' +
   '/backlog use — which board this project uses; /backlog use repo | <board link> | own to switch\n' +
   '/backlog team — make this project’s board the repo’s shared team board\n' +
   'Or just talk: "save to backlog: …", "show backlog", "start my backlog pick".'
-const BACKLOG_HELP_SHORT = 'Commands: /backlog add <task> · /backlog inbox · /backlog use · /backlog team · /backlog help'
+const BACKLOG_HELP_SHORT = 'Commands: /backlog add <task> · /backlog done #X · /backlog note #X <text> · /backlog inbox · /backlog use · /backlog team · /backlog help'
 
 type BacklogArgs =
   | { kind: 'show' }
@@ -470,6 +501,8 @@ type BacklogArgs =
   | { kind: 'add'; name: string; priority?: Priority }
   | { kind: 'use'; target: string }   // 'show' | 'repo' | 'own' | 'bad' | a board URL
   | { kind: 'team' }
+  | { kind: 'done'; num: number | null; label: string; result: string }   // num null: no card number given
+  | { kind: 'note'; num: number | null; label: string; text: string }
 
 // "/backlog add Fix login !urgent" → { kind: 'add', name: 'Fix login', priority: 'urgent' }
 function parseBacklogArgs(args: string): BacklogArgs {
@@ -478,6 +511,15 @@ function parseBacklogArgs(args: string): BacklogArgs {
   if (/^(help|\?|-h|--help)$/i.test(s)) return { kind: 'help' }
   if (/^(inbox|list|ls|waiting)$/i.test(s)) return { kind: 'inbox' }
   if (/^team$/i.test(s)) return { kind: 'team' }
+  const dn = s.match(/^(done|close|note)\b\s*(#?[A-Za-z0-9]+)?\s*(.*)$/i)
+  if (dn) {
+    const kind = (dn[1] ?? '').toLowerCase() === 'note' ? 'note' : 'done'
+    const num = dn[2] ? parseCardNumber(dn[2]) : null
+    const label = num === null ? '' : formatNum(num)
+    const rest = (dn[3] ?? '').trim()
+    // "done fix the thing" (no number): the word is not a card number — treat as no number
+    return kind === 'note' ? { kind, num, label, text: clip(rest, MAX_NOTES) } : { kind, num, label, result: clip(rest, MAX_NOTES) }
+  }
   const u = s.match(/^use\b\s*(.*)$/i)
   if (u) {
     const arg = (u[1] ?? '').trim()
@@ -611,6 +653,34 @@ function stamp(): string {
 
 function clip(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1).trimEnd() + '…' : s
+}
+
+// Card numbers as the board shows them: #1…#999, then #A1…#A999, #B1…, #Z999,
+// #AA1… (each letter series holds 999). Same as cursor/backlog-mcp.mjs.
+function seriesLetters(i: number): string {
+  let s = ''
+  i = i + 1
+  while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26) }
+  return s
+}
+function formatNum(n: number): string {
+  if (!(n > 0)) return ''
+  n = Math.floor(n)
+  if (n <= 999) return String(n)
+  const k = n - 1000
+  return seriesLetters(Math.floor(k / 999)) + (k % 999 + 1)
+}
+// "#23" → 23, "A1" → 1000, "#B1" → 1999, "AA1" → 26974; null when not a card number
+function parseCardNumber(v: unknown): number | null {
+  const s = String(v ?? '').trim().replace(/^#/, '').toUpperCase()
+  if (/^\d{1,7}$/.test(s)) { const n = +s; return n > 0 ? n : null }
+  const m = s.match(/^([A-Z]{1,3})(\d{1,3})$/)
+  if (!m) return null
+  const within = +(m[2] ?? '')
+  if (within < 1 || within > 999) return null
+  let idx = 0
+  for (const ch of m[1] ?? '') idx = idx * 26 + (ch.charCodeAt(0) - 64)
+  return 1000 + (idx - 1) * 999 + (within - 1)
 }
 
 // The pre-0.3 file key: the path with every run of other characters turned

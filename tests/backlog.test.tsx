@@ -329,6 +329,43 @@ test('a fresh session reminds about leftovers from last time', async ($: any, on
   expect(statusText(files)).toMatch(/2 backlog items not on the board yet/)
 })
 
+test('/backlog done #X asks Claude to close that card, with an optional result', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj30', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files)
+  const noBoard = await $.command.run({ command: 'backlog', args: 'done #12' })
+  expect((noBoard as any).text).toMatch(/no board for this project yet/)
+  expect((noBoard as any).context).toBeUndefined()
+
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/Board30' }))
+  const usage = await $.command.run({ command: 'backlog', args: 'done' })
+  expect((usage as any).text).toMatch(/^Usage: \/backlog done #/)
+  const plain = await $.command.run({ command: 'backlog', args: 'done #12' })
+  expect((plain as any).text).toMatch(/Closing #12 on the board at your next message\./)
+  expect((plain as any).context[0]).toMatch(/whose `num` is 12 .*status "done" and finishedAt = today \(keep its result as it is\)/)
+  const withResult = await $.command.run({ command: 'backlog', args: 'done #A4 Shipped in v0.9.1' })
+  expect((withResult as any).text).toMatch(/Closing #A4 .* “Shipped in v0.9.1”/)
+  expect((withResult as any).context[0]).toMatch(/whose `num` is 1003 .*result = "Shipped in v0.9.1"/)
+  expect((withResult as any).context[0]).toMatch(/do not open the board/)
+  const alias = await $.command.run({ command: 'backlog', args: 'close 7' })
+  expect((alias as any).text).toMatch(/Closing #7/)
+})
+
+test('/backlog note #X asks Claude to append a note to that card', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj31', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files)
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/Board31' }))
+  const missing = await $.command.run({ command: 'backlog', args: 'note #12' })
+  expect((missing as any).text).toMatch(/the note to add is missing/)
+  expect((missing as any).context).toBeUndefined()
+  const out = await $.command.run({ command: 'backlog', args: 'note #12 Blocked on the API change' })
+  expect((out as any).text).toMatch(/Adding that note to #12/)
+  expect((out as any).context[0]).toMatch(/whose `num` is 12 .*notes = its current notes, then " — " when it already has notes, then "Blocked on the API change"/)
+  const bad = await $.command.run({ command: 'backlog', args: 'note #A1000 x' })
+  expect((bad as any).text).toMatch(/^Usage: \/backlog note #/)
+})
+
 // ---- team boards: /backlog team, /backlog use, the repo link file ----
 
 const TEAM_BOARD = 'https://claude.ai/artifact/TeamBoard123'

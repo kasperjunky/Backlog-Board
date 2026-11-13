@@ -28,7 +28,8 @@ Kanban board of everything you've saved for that project.
   your browser, and the archive offers to clear cards finished more than 30 days ago.
 - **Quick commands.** `/backlog` shows your board's link and anything not on it yet;
   `/backlog add <task> !urgent` captures without asking Claude (`!important`, `!nice` work
-  too); `/backlog inbox` lists captures waiting to sync.
+  too); `/backlog done #12 Shipped` closes a card and `/backlog note #12 …` adds to its note;
+  `/backlog inbox` lists captures waiting to sync.
 - **Nothing gets lost.** If a capture hasn't reached the board yet, a line under the prompt
   says so (e.g. *2 backlog items not on the board yet — say "show backlog" to sync*) and
   clears itself once they're synced.
@@ -73,6 +74,8 @@ its first line what they show.
 | `/backlog` | Shows your board's link and anything not on it yet. |
 | `/backlog add <task> [!urgent \| !important \| !nice]` | Captures right away, without asking Claude (default lane: Important). |
 | `/backlog inbox` | Lists captures that haven't reached the board yet. |
+| `/backlog done #X [what was done]` | Closes card #X on the board at Claude's next message — status done, finished today, and the text (if given) as its ✓ result line. `/backlog close` is the same. |
+| `/backlog note #X <text>` | Appends the text to card #X's note on the board at Claude's next message. |
 | `/backlog use` | Shows which board this project uses. `/backlog use repo` joins the team board linked in the repo, `/backlog use <board link>` uses any shared board, `/backlog use own` goes back to your own. |
 | `/backlog team` | Makes this project's board the repo's team board (see [Team boards](#team-boards)). |
 | `/backlog help` | Lists the commands. |
