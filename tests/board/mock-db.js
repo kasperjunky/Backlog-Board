@@ -32,6 +32,7 @@
   function later(fn) { setTimeout(fn, 0); }
 
   window.__writes = [];
+  window.__undoMs = 300;        // the board's Undo window, shortened for tests
   window.__allWrites = [];
   window.__doc = function (path) { return clone(docs[path]); };
   function rec(w) { window.__writes.push(w); window.__allWrites.push(w); }

@@ -6,6 +6,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Undo for deleted cards.** ✕ deletes a card at once (no more "Delete? / Keep"
+  step) and a toast offers Undo for 10 seconds; several deletes stack into one
+  toast, Undo writes each card back as it was (same number, images, result), and
+  Escape on the toast dismisses it. Clearing the archive still asks first.
+
 ### Security
 - Cursor's `setup` pins the MCP server in `.cursor/mcp.json` to the release that
   ran it (`github:…#backlog--vX.Y.Z`) instead of the `main` branch.

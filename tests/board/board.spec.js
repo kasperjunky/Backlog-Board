@@ -122,15 +122,43 @@
   });
 
   // ---- archive, adders, controls ----
-  await test("deleting from the archive needs a second click", async function () {
+  await test("deleting from the archive is immediate, and Undo puts the card back", async function () {
     $("#archive").open = true;
     $(".arc-item .iconbtn.danger").click(); await tick();
-    eq(window.__writes.length, 0, "no delete yet");
-    $(".arc-item .confirm button:not(.yes)").click(); await tick();
-    eq($$(".arc-item").length, 2, "kept");
-    $(".arc-item .iconbtn.danger").click(); $(".arc-item .confirm .yes").click(); await tick();
-    eq($$(".arc-item").length, 1, "deleted");
-    eq(window.__writes, [["delete", "items/3"]]);
+    eq($$(".arc-item").length, 1, "gone at once");
+    eq(window.__writes, [["delete", "items/3"]], "the doc is deleted right away");
+    var toast = $("#toast");
+    ok(!toast.hidden && /Deleted “Gamma done”/.test(toast.textContent), "toast: " + toast.textContent);
+    eq(document.activeElement && document.activeElement.className, "tundo", "focus lands on Undo");
+    $(".tundo", toast).click(); await tick();
+    eq($$(".arc-item").length, 2, "restored");
+    ok(toast.hidden, "toast closed");
+    var back = window.__writes.filter(function (w) { return w[0] === "set" && w[1] === "items/3"; })[0];
+    ok(back && back[2].name === "Gamma done" && back[2].status === "done" && back[2].finishedAt === "2026-11-03", "written back as it was: " + JSON.stringify(back && back[2]));
+    eq($$(".arc-item .nm").map(function (n) { return n.textContent; }), ["Gamma done", "Zeta old done"], "archive order kept");
+  });
+  await test("deletes stack into one toast, which goes away when the Undo window ends", async function () {
+    $(".iconbtn.danger", card("5")).click(); await tick();
+    ok(!card("5"), "card 5 gone");
+    $(".iconbtn.danger", card("4")).click(); await tick();
+    var toast = $("#toast");
+    ok(/Deleted 2 cards/.test(toast.textContent), "stacked: " + toast.textContent);
+    eq(window.__writes, [["delete", "items/5"], ["delete", "items/4"]], "two deletes, nothing else");
+    await tick(window.__undoMs + 150);
+    ok(toast.hidden, "toast gone after the window");
+    eq(lane("urgent"), ["Alpha task"], "cards stay deleted");
+    eq(window.__writes.length, 2, "no further writes");
+  });
+  await test("Undo after stacked deletes restores every card, and Escape dismisses the toast", async function () {
+    $(".iconbtn.danger", card("5")).click(); await tick();
+    $(".iconbtn.danger", card("4")).click(); await tick();
+    $(".tundo", $("#toast")).click(); await tick();
+    eq(lane("urgent"), ["Alpha task", "Delta urgent", "Echo urgent"], "both back in place");
+    eq(window.__writes.filter(function (w) { return w[0] === "set"; }).map(function (w) { return w[1]; }).sort(), ["items/4", "items/5"], "both written back");
+    $(".iconbtn.danger", card("5")).click(); await tick();
+    key(document.activeElement, "Escape");
+    ok($("#toast").hidden, "Escape on the toast dismisses it");
+    ok(!card("5"), "the delete stands");
   });
   await test("the + by a lane name opens an input that adds cards", async function () {
     $('[data-add-open="nice"]').click(); await tick();
@@ -261,10 +289,10 @@
   await test("text on Urgent buttons uses the palette's own readable color", async function () {
     await pick('[data-palette="mono"]'); await pick('[data-mode="dark"]'); $("#themeBtn").click(); await tick();
     $("#archive").open = true;
-    $(".arc-item .iconbtn.danger").click(); await tick();
-    var yes = $(".arc-item .confirm .yes");
+    $(".arc-clean", $("#arcTools")).click(); await tick();
+    var yes = $("#arcTools button.yes");
     eq(getComputedStyle(yes).color, "rgb(17, 17, 17)", "dark text on Mono's light urgent");
-    $(".arc-item .confirm button:not(.yes)").click(); await tick();
+    $(".arc-keep", $("#arcTools")).click(); await tick();
     await themeReset();
   });
 

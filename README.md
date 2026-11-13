@@ -107,7 +107,9 @@ comes #AA1). A card added on the board shows its number a moment after it appear
 - **●** (the colored dot) — recolor the card from a palette or a custom color; *Default*
   goes back to the lane color.
 - **▾** — collapse the card to just its name.
-- **✓** — mark it done (it moves to the Archive). **✕** — delete it (asks first).
+- **✓** — mark it done (it moves to the Archive). **✕** — delete it. The card goes at once and a
+  toast offers **Undo** for 10 seconds; Undo puts it back exactly as it was, number and images
+  included.
 
 **Moving cards.** Drag a card to reorder it or drop it in another lane. On a phone, tablet or
 keyboard, use the **⇅** button at the card's top right instead: it opens **↑ Up**, **↓ Down**
@@ -149,7 +151,7 @@ Your search, filters, sort and the folded/unfolded state are remembered in your 
 
 **Archive.** Finished cards, newest first, each with its note and Claude's ✓ result line
 (any links in it are clickable).
-**↺** puts a card back on the board; **✕** deletes it for good (asks first). When cards were
+**↺** puts a card back on the board; **✕** deletes it, with the same 10-second **Undo**. When cards were
 finished more than 30 days ago, a **Remove N cards done more than 30 days ago** button
 clears them in one go (also asks first).
 

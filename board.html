@@ -293,6 +293,16 @@
   .confirm { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .confirm button { font: inherit; font-size: 12px; border-radius: 6px; padding: 2px 8px; cursor: pointer; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); }
   .confirm button.yes { background: var(--urgent); border-color: var(--urgent); color: var(--urgent-fg); }
+  /* Undo toast: fixed at the bottom, clear of a phone's home bar */
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; align-items: center; gap: 10px; max-width: min(92vw, 520px); font-size: 13px; color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; padding: 9px 10px 9px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.22); }
+  .toast .tmsg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toast .tundo { font: inherit; font-size: 13px; font-weight: 600; border-radius: 8px; padding: 4px 10px; cursor: pointer; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--fg); }
+  .toast .tundo:hover { border-color: var(--fg); }
+  .toast .tx { font: inherit; font-size: 14px; line-height: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+  .toast .tx:hover { color: var(--fg); background: var(--surface-2); }
+  .toast .tbar { position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px; background: var(--line-strong); transform-origin: left; animation: toastbar linear forwards; }
+  @keyframes toastbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) { .toast .tbar { animation: none; } }
 
   .worklane { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 1px; }
   .card .linkbtn.on { color: var(--accent); }
@@ -489,6 +499,7 @@
   </header>
 
   <div id="banner" class="banner" hidden></div>
+  <div id="toast" class="toast" role="status" hidden></div>
   <div id="pickbar" class="pickbar" hidden></div>
 
   <div class="toolbar" id="toolbar">
@@ -764,6 +775,59 @@
     if (e && e.code === "invalid_argument") { state.canWrite = false; banner("This board is read-only for you — changes won’t be saved."); }
   }
 
+  // ---- delete with Undo ----
+  // ✕ deletes at once (the doc is removed, so closing the tab changes nothing)
+  // and a toast offers Undo for UNDO_MS; Undo writes the card back as it was,
+  // same doc id, so its number, images and history survive. Deletes inside one
+  // window stack into a single toast.
+  var UNDO_MS = window.__undoMs > 0 ? window.__undoMs : 10000;
+  var undo = { items: [], timer: null };
+  var toastEl = document.getElementById("toast");
+  function snapshotOf(it) { return JSON.parse(JSON.stringify(it)); }
+  function deleteWithUndo(it) {
+    var snap = snapshotOf(it);
+    removeItem(it.id);
+    undo.items.push(snap);
+    showUndoToast();
+    announce("Deleted “" + it.name + "”. Undo is available for " + Math.round(UNDO_MS / 1000) + " seconds.");
+  }
+  function showUndoToast() {
+    clearTimeout(undo.timer);
+    toastEl.textContent = "";
+    var n = undo.items.length;
+    var msg = document.createElement("span"); msg.className = "tmsg";
+    msg.textContent = n === 1 ? "Deleted “" + undo.items[0].name + "”" : "Deleted " + n + " cards";
+    msg.title = undo.items.map(function (i) { return i.name; }).join("\n");
+    var u = document.createElement("button"); u.type = "button"; u.className = "tundo"; u.textContent = "Undo";
+    u.setAttribute("aria-label", n === 1 ? "Undo deleting " + undo.items[0].name : "Undo deleting " + n + " cards");
+    u.addEventListener("click", undoDelete);
+    var x = document.createElement("button"); x.type = "button"; x.className = "tx"; x.textContent = "✕"; x.setAttribute("aria-label", "Dismiss");
+    x.addEventListener("click", hideUndoToast);
+    var bar = document.createElement("i"); bar.className = "tbar"; bar.style.animationDuration = UNDO_MS + "ms";
+    toastEl.appendChild(msg); toastEl.appendChild(u); toastEl.appendChild(x); toastEl.appendChild(bar);
+    toastEl.hidden = false;
+    u.focus();
+    undo.timer = setTimeout(hideUndoToast, UNDO_MS);
+  }
+  function hideUndoToast() {
+    clearTimeout(undo.timer); undo.timer = null;
+    undo.items = [];
+    toastEl.hidden = true; toastEl.textContent = "";
+  }
+  function undoDelete() {
+    var back = undo.items.slice();
+    hideUndoToast();
+    back.forEach(function (snap) {
+      if (!byId(snap.id)) state.items.push(snap);
+      writeFull(snap);
+    });
+    render();
+    announce(back.length === 1 ? "Restored “" + back[0].name + "”." : "Restored " + back.length + " cards.");
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !toastEl.hidden && toastEl.contains(document.activeElement)) hideUndoToast();
+  });
+
   // ---- handoff: pick an item for Claude to start on ----
   // Each person's pick lives in their own private area, so teammates' picks
   // never overwrite each other; without an identity, the shared slot is used.
@@ -986,8 +1050,8 @@
     done.className = "iconbtn"; done.type = "button"; done.title = "Mark done (archive)"; done.textContent = "✓"; done.setAttribute("aria-label", "Mark done");
     done.addEventListener("click", function () { patch(it.id, { status: "done", finishedAt: today() }); });
     var del = document.createElement("button");
-    del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete card");
-    del.addEventListener("click", function () { askDelete(li, it); });
+    del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete (Undo for 10 s)"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete card");
+    del.addEventListener("click", function () { deleteWithUndo(it); });
     var movebtn = document.createElement("button"); movebtn.className = "iconbtn movebtn" + (moverId === it.id ? " on" : ""); movebtn.type = "button"; movebtn.textContent = "⇅";
     movebtn.dataset.act = "movebtn"; movebtn.title = "Move card (or Alt+↑ / Alt+↓)"; movebtn.setAttribute("aria-label", "Move card"); movebtn.setAttribute("aria-expanded", moverId === it.id ? "true" : "false");
     movebtn.addEventListener("click", function () { moverId = moverId === it.id ? null : it.id; refocus = { id: it.id, act: moverId ? "up" : "movebtn" }; render(); });
@@ -1429,35 +1493,6 @@
     li.appendChild(box); inp.focus();
   }
 
-  function askDelete(li, it) {
-    var meta = li.querySelector(".meta");
-    if (li.querySelector(".confirm")) return;
-    var c = document.createElement("div"); c.className = "confirm";
-    c.innerHTML = "<span>Delete?</span>";
-    var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Delete";
-    var no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
-    yes.addEventListener("click", function () { removeItem(it.id); });
-    no.addEventListener("click", function () { c.remove(); meta.style.visibility = ""; });
-    c.appendChild(yes); c.appendChild(no);
-    meta.style.visibility = "hidden";
-    li.appendChild(c);
-  }
-
-  // Archived cards: swap the action buttons for a two-step "Delete? / Keep".
-  function askDeleteArchived(acts, it) {
-    if (acts.querySelector(".confirm")) return;
-    var kids = Array.prototype.slice.call(acts.children);
-    kids.forEach(function (k) { k.hidden = true; });
-    var c = document.createElement("div"); c.className = "confirm";
-    var q = document.createElement("span"); q.textContent = "Delete for good?";
-    var yes = document.createElement("button"); yes.type = "button"; yes.className = "yes"; yes.textContent = "Delete";
-    var no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
-    yes.addEventListener("click", function () { removeItem(it.id); });
-    no.addEventListener("click", function () { c.remove(); kids.forEach(function (k) { k.hidden = false; }); });
-    c.appendChild(q); c.appendChild(yes); c.appendChild(no);
-    acts.appendChild(c); no.focus();
-  }
-
   // ---- drag targets ----
   function afterElement(listEl, y) {
     var cards = Array.prototype.slice.call(listEl.querySelectorAll(".card:not(.dragging)"));
@@ -1574,8 +1609,8 @@
       var acts = document.createElement("div"); acts.className = "arc-actions";
       var res = document.createElement("button"); res.className = "iconbtn"; res.type = "button"; res.title = "Restore to board"; res.textContent = "↺"; res.setAttribute("aria-label", "Restore " + it.name + " to board");
       res.addEventListener("click", function () { patch(it.id, { status: "todo", finishedAt: null, order: maxOrder(it.priority) + 1 }); });
-      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete permanently"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete " + it.name + " permanently");
-      del.addEventListener("click", function () { askDeleteArchived(acts, it); });
+      var del = document.createElement("button"); del.className = "iconbtn danger"; del.type = "button"; del.title = "Delete (Undo for 10 s)"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete " + it.name);
+      del.addEventListener("click", function () { deleteWithUndo(it); });
       acts.appendChild(res); acts.appendChild(del);
       top.appendChild(nm); top.appendChild(acts);
       li.appendChild(top);
