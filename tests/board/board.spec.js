@@ -176,6 +176,37 @@
     key(inp, "Escape"); await tick();
     ok(inp.parentElement.hidden, "Esc closes it");
   });
+  await test("N opens the composer in the focused lane, Esc closes it", async function () {
+    // focus on a card in Important: N opens that lane's composer
+    var b = $(".movebtn", card("2")); b.focus();
+    key(b, "n"); await tick();
+    var imp = $('[data-add="important"]');
+    ok(!imp.parentElement.hidden, "Important composer open");
+    eq(document.activeElement, imp, "input focused");
+    ok($('[data-add="urgent"]').parentElement.hidden, "other lanes untouched");
+    // typing n inside the composer is just text
+    key(imp, "n"); await tick();
+    ok($('[data-add="nice"]').parentElement.hidden && $('[data-add="urgent"]').parentElement.hidden, "n in a field opens nothing");
+    imp.value = "Typed in"; key(imp, "Enter"); await tick();
+    ok(lane("important").indexOf("Typed in") >= 0, "card added");
+    key(imp, "Escape"); await tick();
+    ok(imp.parentElement.hidden, "Esc closes it");
+    eq(document.activeElement, $('[data-add-open="important"]'), "focus returns to the +");
+    // focus outside the board: N reopens the lane used last
+    document.body.focus(); $("#searchInput").blur();
+    key(document.body, "N"); await tick();
+    ok(!imp.parentElement.hidden, "last lane reopened from the page body");
+    key(imp, "Escape"); await tick();
+    // modifiers and the search box leave it alone
+    key(document.body, "n", { ctrlKey: true }); await tick();
+    ok(imp.parentElement.hidden, "Ctrl+N ignored");
+    var s = $("#searchInput"); s.focus(); key(s, "n"); await tick();
+    ok(imp.parentElement.hidden && $('[data-add="urgent"]').parentElement.hidden, "n in the search box ignored");
+    s.blur();
+    // cleanup: remove the card the test added
+    var added = $$(".card").filter(function (c) { return $(".name", c).textContent === "Typed in"; })[0];
+    if (added) { $(".iconbtn.danger", added).click(); await tick(); await new Promise(function (r) { setTimeout(r, 400); }); }
+  });
   await test("controls collapse, remember the choice, and flag active filters", async function () {
     var t = $("#controlsToggle");
     t.click(); await tick();

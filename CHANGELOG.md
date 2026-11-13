@@ -7,6 +7,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **N adds a card from the keyboard.** Press N (outside a text field) and the new-card
+  box opens in the lane you're on — the lane of the focused card or +; elsewhere, the
+  lane you last added to, or Urgent. Enter adds, Esc closes. Pairs with Alt+↑ / Alt+↓.
 - **Comments on cards.** 💬 opens a per-card thread: anyone who can use the board posts
   a line (author and date shown; remove your own, the owner any); links inside are
   clickable; the Markdown export lists them. Claude reads a card's comments when it

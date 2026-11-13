@@ -552,17 +552,17 @@
 
   <div class="board" id="board">
     <section class="col" data-col="urgent">
-      <div class="col-head"><span class="pip"></span><h2>Urgent</h2><button type="button" class="laneadd" data-add-open="urgent" aria-label="Add a card to Urgent" title="Add a card to Urgent" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
+      <div class="col-head"><span class="pip"></span><h2>Urgent</h2><button type="button" class="laneadd" data-add-open="urgent" aria-label="Add a card to Urgent (N)" title="Add a card to Urgent (N)" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
       <div class="adder" hidden><input data-add="urgent" placeholder="New Urgent card — Enter to add, Esc to close" aria-label="New Urgent card" maxlength="120"></div>
       <ul class="list" data-list="urgent" aria-label="Urgent"></ul>
     </section>
     <section class="col" data-col="important">
-      <div class="col-head"><span class="pip"></span><h2>Important</h2><button type="button" class="laneadd" data-add-open="important" aria-label="Add a card to Important" title="Add a card to Important" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
+      <div class="col-head"><span class="pip"></span><h2>Important</h2><button type="button" class="laneadd" data-add-open="important" aria-label="Add a card to Important (N)" title="Add a card to Important (N)" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
       <div class="adder" hidden><input data-add="important" placeholder="New Important card — Enter to add, Esc to close" aria-label="New Important card" maxlength="120"></div>
       <ul class="list" data-list="important" aria-label="Important"></ul>
     </section>
     <section class="col" data-col="nice">
-      <div class="col-head"><span class="pip"></span><h2>Nice to have</h2><button type="button" class="laneadd" data-add-open="nice" aria-label="Add a card to Nice to have" title="Add a card to Nice to have" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
+      <div class="col-head"><span class="pip"></span><h2>Nice to have</h2><button type="button" class="laneadd" data-add-open="nice" aria-label="Add a card to Nice to have (N)" title="Add a card to Nice to have (N)" aria-expanded="false">+</button><span class="count" data-count>0</span></div>
       <div class="adder" hidden><input data-add="nice" placeholder="New Nice to have card — Enter to add, Esc to close" aria-label="New Nice to have card" maxlength="120"></div>
       <ul class="list" data-list="nice" aria-label="Nice to have"></ul>
     </section>
@@ -1823,6 +1823,29 @@
       var box = boardEl.querySelector('[data-col="' + col + '"] .adder');
       setAdderOpen(col, !!(box && box.hidden));
     });
+  });
+  // N opens the composer in the lane that holds keyboard focus (a card, its
+  // "+" or its heading); with focus elsewhere, the lane last used this way,
+  // else Urgent. Typing fields, modifier keys and open dialogs are left alone.
+  var lastLane = COLS[0];
+  boardEl.addEventListener("focusin", function (e) {
+    var sec = e.target.closest && e.target.closest("[data-col]");
+    if (sec && COLS.indexOf(sec.dataset.col) >= 0) lastLane = sec.dataset.col;
+  });
+  function isTypingIn(el) {
+    if (!el || el === document.body) return false;
+    if (el.isContentEditable) return true;
+    var tag = el.tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT") return true;
+    return tag === "INPUT" && el.type !== "checkbox" && el.type !== "radio" && el.type !== "color" && el.type !== "button";
+  }
+  document.addEventListener("keydown", function (e) {
+    if ((e.key !== "n" && e.key !== "N") || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    if (isTypingIn(e.target) || document.querySelector(".lb-overlay, .exp-overlay")) return;
+    var sec = e.target.closest && e.target.closest("[data-col]");
+    var col = sec && COLS.indexOf(sec.dataset.col) >= 0 ? sec.dataset.col : lastLane;
+    e.preventDefault();
+    setAdderOpen(col, true);
   });
   document.querySelectorAll("[data-add]").forEach(function (inp) {
     var col = inp.dataset.add;

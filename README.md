@@ -84,7 +84,9 @@ its first line what they show.
 
 **Lanes.** Cards sit in three lanes — **Urgent**, **Important**, **Nice to have** — plus an
 **Archive** at the bottom for finished cards. Click the **+** next to a lane's name to add a
-card there (Enter adds it and keeps the box open for another; Esc closes it).
+card there (Enter adds it and keeps the box open for another; Esc closes it). From the
+keyboard, press **N** to open that box in the lane you're on (the lane of the focused card
+or **+**); with focus elsewhere it opens the lane you last added to, or Urgent.
 
 **Card numbers.** Every card gets the next running number, whether Claude captured it or you
 added it on the board: **#1 … #999**, then **#A1 … #A999**, **#B1** and so on (after #Z999
@@ -121,7 +123,7 @@ comes #AA1). A card added on the board shows its number a moment after it appear
 **Moving cards.** Drag a card to reorder it or drop it in another lane. On a phone, tablet or
 keyboard, use the **⇅** button at the card's top right instead: it opens **↑ Up**, **↓ Down**
 and buttons for the other lanes. With the keyboard, **Alt+↑ / Alt+↓** moves the card you're
-on. Moving is paused while a search, filter or the quick-wins sort is on, so the order you
+on, and **N** opens a new card in its lane. Moving is paused while a search, filter or the quick-wins sort is on, so the order you
 see is always the real one.
 
 **Picking a card for Claude.** **▶ Work on this** marks the card *📌 Picked for Claude* and
