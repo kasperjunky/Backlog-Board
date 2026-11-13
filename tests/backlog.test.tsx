@@ -152,6 +152,33 @@ test('a corrupt backlog file is never overwritten, and add refuses', async ($: a
   expect(files[backup as string]).toBe(broken)
 })
 
+test('a torn write is healed from the .bak copy, keeping the broken text', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj7b', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Survives the crash' })
+  const path = backlogPath(files)
+  const good = files[path] as string
+  // every save keeps the previous good text beside the file
+  expect(files[path + '.bak']).toBeTruthy()
+  // a second save makes the copy the text that holds the first capture
+  await $.tool.call({ tool: 'mcp__backlog__add', name: 'Second capture' })
+  expect(files[path + '.bak']).toBe(good)
+
+  // the last write is cut short: the file no longer parses
+  const torn = (files[path] as string).slice(0, 40)
+  files[path] = torn
+  await $.session.start({ cwd: '/proj7b', surface: 'desktop', isInteractive: true })
+  const healed = readFile(files)
+  expect(healed.inbox.map((i: any) => i.name)).toEqual(['Survives the crash'])
+  const kept = Object.keys(files).find(p => p.startsWith(path + '.corrupt-'))
+  expect(files[kept as string]).toBe(torn)
+
+  // and captures keep working afterwards
+  const r = await $.tool.call({ tool: 'mcp__backlog__add', name: 'After healing' })
+  expect((r as any).result).toMatch(/Added #/)
+  expect(readFile(files).inbox.length).toBe(2)
+})
+
 test('paths that slug the same still get separate backlog files', async ($: any, on: any) => {
   const files = wire(on)
   await $.session.start({ cwd: 'D:/a-b', surface: 'desktop', isInteractive: true })

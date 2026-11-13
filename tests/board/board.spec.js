@@ -44,6 +44,17 @@
     var st = card("4").getAttribute("style") || "";
     ok(st.indexOf("url(") < 0 && st.indexOf("red;") < 0, "style was: " + st);
   });
+  await test("oversized card text written through the API renders clipped", async function () {
+    var big = new Array(6000).join("x");
+    var subs = []; for (var i = 0; i < 150; i++) subs.push({ text: "sub " + big, done: false });
+    window.__remote("items/5", { name: big, notes: big, result: big, subtasks: subs }); await tick(60);
+    var c = card("5");
+    ok(c, "card 5 still renders");
+    eq($(".name", c).textContent.length, 200, "name clipped to 200");
+    eq($(".why", c).textContent.length, 2000, "notes clipped to 2000");
+    eq($$(".ck-row", c).length, 100, "subtasks capped at 100");
+    eq($(".ck-row .ck-t", c).textContent.length, 200, "subtask text clipped to 200");
+  });
   await test("saving a javascript: link is refused", async function () {
     $(".linkbtn", card("1")).click(); await tick();
     var box = $(".linkedit", card("1")); var inp = $("input", box);

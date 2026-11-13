@@ -19,6 +19,11 @@ jobs:
       # The plugin and the Cursor MCP server have zero npm dependencies,
       # so there is nothing to install — the test scripts run on plain Node.
 
+      - name: Plugin manifest (claude plugin validate --strict)
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict
+
       - name: MCP server tests
         run: node scripts/test-mcp.mjs
 

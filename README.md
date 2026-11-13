@@ -256,19 +256,21 @@ them out; say *"show backlog"* there).
 newer installed (no Claude Code needed for this part):
 
 ```
-npx -y github:kasperjunky/Backlog-Board setup
+npx -y github:kasperjunky/Backlog-Board#backlog--v0.9.0 setup
 ```
 
 That writes two files into the project's `.cursor/` folder (keeping anything already there):
 
-- `.cursor/mcp.json` gains a `backlog` server:
+- `.cursor/mcp.json` gains a `backlog` server, pinned to the release that ran `setup` (so
+  teammates run that reviewed version, never whatever `main` is today; re-run `setup` to
+  move to a newer release):
 
   ```json
   {
     "mcpServers": {
       "backlog": {
         "command": "npx",
-        "args": ["-y", "github:kasperjunky/Backlog-Board", "--project", "${workspaceFolder}"]
+        "args": ["-y", "github:kasperjunky/Backlog-Board#backlog--v0.9.0", "--project", "${workspaceFolder}"]
       }
     }
   }
@@ -334,8 +336,17 @@ a private claude.ai Artifact with a small shared database and remembers its link
   cloned repo is only a suggestion: your captures go to that board only after you run
   `/backlog use repo`, and only links to claude.ai boards are accepted.
 - **Only `http(s)` links are clickable.** `javascript:` and other schemes are dropped.
-- **A damaged backlog file is never overwritten.** If `~/.claude/backlogs/<project>.json`
-  stops parsing, the mod pauses captures and keeps a `.corrupt-<time>` copy beside it.
+- **Card text is bounded on the way in as well as on the way out.** The plugin, the MCP
+  server and the board all clip what they write (names 200 characters, notes and results
+  2,000, subtasks 100 per card, images 8), and the board applies the same bounds to what it
+  reads — so a teammate writing an oversized doc through the API can't stall the board.
+- **Cursor runs a pinned release.** `setup` writes `github:…#backlog--v<version>` into
+  `.cursor/mcp.json`, never a branch, so a push to `main` can't change what a teammate's
+  editor starts.
+- **A damaged backlog file is never overwritten.** Every save keeps the previous good text in
+  a `.bak` beside `~/.claude/backlogs/<project>.json`; if a write is cut short, the next start
+  puts the copy back (keeping the torn text as `.corrupt-<time>`). If neither parses, captures
+  pause rather than replace the file.
 - **Shared boards don't list your other projects** in the project switcher.
 
 ## Development

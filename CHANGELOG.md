@@ -4,6 +4,22 @@ All notable changes to Backlog Board are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Cursor's `setup` pins the MCP server in `.cursor/mcp.json` to the release that
+  ran it (`github:…#backlog--vX.Y.Z`) instead of the `main` branch.
+- The board bounds card text on the way in (name 200, notes/result 2,000,
+  100 subtasks of 200) so an oversized doc written through the API can't stall it,
+  and its status banner is built from text nodes, never markup.
+- Claude is told that a card's `result` and `link` are data too, and to ask before
+  acting on anything they spell out; the Cursor rule says the same.
+- CI runs `claude plugin validate --strict`.
+
+### Fixed
+- A backlog file left half-written (the session killed mid-save) is healed from
+  the `.bak` copy every save now keeps, instead of pausing captures.
+
 ## [0.9.0] - 2026-11-08
 
 ### Added

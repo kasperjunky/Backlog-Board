@@ -611,6 +611,15 @@
     return Math.round((n - d) / 86400000);
   }
   function esc(s) { return String(s == null ? "" : s); }
+  // Card text is bounded on every write path (the plugin, the MCP server and
+  // this page all clip), but a teammate can write a doc through the API
+  // directly, so the same bounds hold on the way in: an oversized name, note
+  // or subtask list renders clipped instead of stalling the board.
+  var TEXT_MAX = { name: 200, notes: 2000, result: 2000, link: 2000, subtask: 200 }, SUBTASKS_MAX = 100;
+  function clipText(v, max) {
+    var s = typeof v === "string" ? v : "";
+    return s.length > max ? s.slice(0, max - 1) + "…" : s;
+  }
   // ---- due dates ----
   function safeDate(v) {
     // a real calendar date (rejects 2026-02-31), checked in UTC so no time zone shifts it
@@ -667,9 +676,17 @@
   function inCol(c) { return active().filter(function (i) { return i.priority === c; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
   function maxOrder(c) { var m = 0; inCol(c).forEach(function (i) { if ((i.order || 0) > m) m = i.order || 0; }); return m; }
 
+  // msg: a string, or an array of strings and { b: "bold text" } parts. Built
+  // with text nodes only — never markup — so nothing read from the board can
+  // ever end up here as HTML.
   function banner(msg) {
     if (!msg) { bannerEl.hidden = true; return; }
-    bannerEl.innerHTML = msg; bannerEl.hidden = false;
+    bannerEl.textContent = "";
+    (Array.isArray(msg) ? msg : [msg]).forEach(function (part) {
+      if (part && typeof part === "object") { var b = document.createElement("b"); b.textContent = String(part.b == null ? "" : part.b); bannerEl.appendChild(b); }
+      else bannerEl.appendChild(document.createTextNode(String(part == null ? "" : part)));
+    });
+    bannerEl.hidden = false;
   }
 
   function filterActive() { return !!filterQ || Object.keys(filterEfforts).length > 0 || Object.keys(filterStatuses).length > 0 || (filterMine && teamMode()); }
@@ -2097,7 +2114,7 @@
   function start() {
     if (!window.claude || !window.claude.use) { state.ready = true; render(); return; }
     var loadTimer = setTimeout(function () {
-      if (!state.ready) banner("Still connecting to your saved backlog… if this stays, reopen from chat with <b>show backlog</b>.");
+      if (!state.ready) banner(["Still connecting to your saved backlog… if this stays, reopen from chat with ", { b: "show backlog" }, "."]);
     }, 10000);
     window.claude.use("db").then(function (d) {
       if (!d) { clearTimeout(loadTimer); state.ready = true; banner("Sign in to claude.ai to load and save this board."); render(); return; }
@@ -2136,21 +2153,21 @@
           var data = doc.data() || {};
           items.push({
             id: doc.id,
-            name: data.name || "(untitled)",
+            name: clipText(data.name, TEXT_MAX.name) || "(untitled)",
             priority: COLS.indexOf(data.priority) >= 0 ? data.priority : "nice",
             value: typeof data.value === "number" ? data.value : 3,
             effort: EFFORTS.indexOf(data.effort) >= 0 ? data.effort : "M",
-            notes: typeof data.notes === "string" ? data.notes : "",
+            notes: clipText(data.notes, TEXT_MAX.notes),
             collapsed: data.collapsed === true,
             color: safeColor(data.color),
-            result: typeof data.result === "string" ? data.result : "",
-            link: typeof data.link === "string" ? data.link : "",
+            result: clipText(data.result, TEXT_MAX.result),
+            link: clipText(data.link, TEXT_MAX.link),
             due: safeDate(data.due),
             createdBy: validUserId(data.createdBy),
             assignee: validUserId(data.assignee),
             num: typeof data.num === "number" && data.num > 0 ? Math.floor(data.num) : 0,
             images: cleanImages(data.images),
-            subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).map(function (s) { return { text: s.text, done: s.done === true }; }) : [],
+            subtasks: Array.isArray(data.subtasks) ? data.subtasks.filter(function (s) { return s && typeof s.text === "string"; }).slice(0, SUBTASKS_MAX).map(function (s) { return { text: clipText(s.text, TEXT_MAX.subtask), done: s.done === true }; }) : [],
             status: data.status === "doing" || data.status === "done" ? data.status : "todo",
             order: typeof data.order === "number" ? data.order : 0,
             addedAt: data.addedAt || "",
