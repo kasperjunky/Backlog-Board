@@ -45,10 +45,12 @@ Kanban board of everything you've saved for that project.
 ### Quick start
 
 1. **Install the plugin** (see [Install](#install)) and open Claude Code in your project.
-2. **Capture something.** Say *"save to backlog: add dark mode, it's the top user request"*,
-   or type `/backlog add Add dark mode !important`.
-3. **Open the board.** Say *"show backlog"*. The first time, Claude creates a private board
-   for this project and gives you its link; after that it opens the same board.
+2. **Send any message.** On the first one, Claude sets up a private board for the project
+   (you approve one publish) and, if it finds open tasks written down already — in its
+   memory for the project, `CLAUDE.md`, or a `TODO`, `BACKLOG` or `ROADMAP` file — shows
+   you the list and adds the ones you pick. A line under the prompt says this is coming.
+3. **Capture something.** Say *"save to backlog: add dark mode, it's the top user request"*,
+   or type `/backlog add Add dark mode !important`. *"show backlog"* opens the board any time.
 4. **Hand a card back.** On the board, click **▶ Work on this** on a card, then tell Claude
    *"start my backlog pick"*. When Claude finishes, the card moves to the Archive with a
    ✓ line saying what was done.
@@ -59,6 +61,7 @@ Kanban board of everything you've saved for that project.
 | --- | --- |
 | *"save to backlog: …"*, *"later"*, *"let's do that another time"* | Captures a task (Claude fills in priority, value, effort and the reason you gave) and syncs it to the board. Near-duplicates are skipped or flagged. |
 | *"show backlog"* / *"open the board"* | Opens the board, bringing in anything not on it yet. |
+| *"import my backlog"* | Reads Claude's memory for the project and its notes files for open tasks, shows you the candidates with a suggested priority, and adds the ones you pick. Runs by itself the first time; duplicates are skipped. |
 | *"start my backlog pick"* (the board says *"start my pick"* — either works) | Claude reads the card you picked, says which one it's starting, and gets to work. |
 | *"work on the dark mode item"* | Same, for a card you name instead of picking. |
 | *"do item #23"* / *"work on #A4"* | Same, for the card with that number on the board. |
@@ -88,6 +91,7 @@ its first line what they show.
 | `/backlog` | Shows your board's link and anything not on it yet. |
 | `/backlog add <task> [!urgent \| !important \| !nice]` | Captures right away, without asking Claude (default lane: Important). |
 | `/backlog inbox` | Lists captures that haven't reached the board yet. |
+| `/backlog import` | Pulls open tasks out of your notes (Claude's memory for the project, `CLAUDE.md`, `TODO`/`BACKLOG`/`ROADMAP` files) onto the board, after you confirm the list. |
 | `/backlog done #X [what was done]` | Closes card #X on the board at Claude's next message — status done, finished today, and the text (if given) as its ✓ result line. `/backlog close` is the same. |
 | `/backlog note #X <text>` | Appends the text to card #X's note on the board at Claude's next message. |
 | `/backlog issue #X [context]` | Promotes card #X to a GitHub Issue in this repo: Claude drafts it from the card (name, note, subtasks as a task list, comments), shows you the draft, and on your yes runs `gh issue create`, then puts the issue URL on the card as its 🔗 link. Needs the `gh` CLI, signed in. `/backlog promote` is the same. |

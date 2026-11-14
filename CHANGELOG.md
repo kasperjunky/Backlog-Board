@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Zero-step start.** The first message in a project now sets up its board: Claude
+  creates the private board (one publish to approve) and, when it finds open tasks
+  already written down — in its memory for the project, `CLAUDE.md`, or a `TODO`,
+  `BACKLOG` or `ROADMAP` file — shows the list with a suggested priority and adds the
+  ones you pick. A line under the prompt says it is coming; it happens once per project.
+- **`/backlog import`** (or *"import my backlog"*) runs that import any time; duplicates
+  are skipped, and the notes' text is treated as data.
+
 ## [0.10.1] - 2026-11-14
 
 ### Added

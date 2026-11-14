@@ -30,4 +30,7 @@ export type BacklogFile = {
   // fingerprint of the board page last published to boardUrl (null: unknown);
   // when the plugin ships a different page, Claude updates the board
   boardTemplate: string | null
+  // true once the first conversation in this project has ended: the one-time
+  // setup (board created, notes imported) is offered only before that
+  welcomed: boolean
 }
