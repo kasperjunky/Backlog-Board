@@ -5,6 +5,7 @@ import { expect, mock, test } from 'claude-code/testing'
 // The status line the mod last set ($.ui.status), per wired test.
 const statusOf = new WeakMap<object, { text: string | undefined; calls: number }>()
 const probedOf = new WeakMap<object, string[]>()
+const locOf = new WeakMap<object, { cwd: string }>()
 
 function wire(on: any) {
   const files: Record<string, string> = {}
@@ -29,9 +30,15 @@ function wire(on: any) {
   on('fs.write', (_: any, e: any) => { files[e.path] = e.text; return { value: undefined } })
   on('tool.register', () => ({ value: { tool: 'mcp__backlog__add' } }))
   on('command.register', () => ({ value: { command: 'backlog' } }))
-  on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
+  const loc = { cwd: '' }
+  locOf.set(files, loc)
+  on('session.start', (_: any, e: any) => { loc.cwd = e.cwd; return { cwd: e.cwd } })
+  on('session.root', () => ({ value: loc.cwd }))
   return files
 }
+// Move the session to another project folder, as the desktop app does after
+// starting it in a spare placeholder.
+function moveSession(files: Record<string, string>, cwd: string) { (locOf.get(files) as { cwd: string }).cwd = cwd }
 
 // The board page the plugin ships, at the path the mod probed for it (the
 // engine spells paths its own way, so learn it rather than guess).
@@ -512,6 +519,33 @@ test('a project that already has a board is never welcomed, and import says when
   const imp = await $.command.run({ command: 'backlog', args: 'import' })
   expect((imp as any).text).toMatch(/^Nothing to import: no notes were found/)
   expect((imp as any).context).toBeUndefined()
+})
+
+test('a session that starts in a spare placeholder folder owns nothing until it moves to the project', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: 'C:/Users/test/.claude/spares/spare-abc123', surface: 'desktop', isInteractive: true })
+  expect(Object.keys(files).filter(k => k.includes('backlogs'))).toEqual([])
+  expect(statusText(files)).toBeUndefined()
+  expect(await contextText($, on)).toBe('')
+  const noProject = await $.command.run({ command: 'backlog', args: 'add Something' })
+  expect((noProject as any).text).toMatch(/no project folder yet/)
+  expect(Object.keys(files).filter(k => k.includes('backlogs'))).toEqual([])
+  // the app moves the session to the real project: the next hook follows it
+  moveSession(files, '/proj60')
+  const ctx = await contextText($, on)
+  expect(ctx).toMatch(/FIRST RUN/)
+  const path = backlogPath(files)
+  expect(path).toMatch(/proj60/)
+  expect(readFile(files).cwd).toBe('/proj60')
+  expect(statusText(files)).toMatch(/set up at your first message/)
+  const add = await $.command.run({ command: 'backlog', args: 'add Something !nice' })
+  expect((add as any).text).toMatch(/Added/)
+  expect(readFile(files).inbox.length).toBe(1)
+  // moving again (a /cd) re-keys to the new project
+  moveSession(files, '/proj61')
+  await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 10 })
+  expect(Object.keys(files).some(k => k.includes('backlogs') && k.includes('proj61'))).toBe(true)
+  expect(Object.keys(files).some(k => k.includes('spare'))).toBe(false)
 })
 
 // ---- team boards: /backlog team, /backlog use, the repo link file ----

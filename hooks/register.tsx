@@ -42,6 +42,8 @@ const BOARD_CAPABILITIES =
 // repo must not be able to send someone's captures to a stranger's board.
 const REPO_LINK = '.claude/backlog-board.json'
 let projectDir = ''
+let homeDir = ''
+let currentCwd = ''   // the folder the backlog file is keyed to right now
 let repoBoardUrl = ''
 // Set when this project's .cursor/mcp.json runs the Backlog Board MCP server:
 // Claude then keeps a local copy of the open cards (and their images) that
@@ -63,86 +65,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const up = await $.env.get('USERPROFILE')
     const hm = await $.env.get('HOME')
-    const home = (up ?? hm ?? '').replace(/\\/g, '/')
-    const cwdNow = e.cwd ?? ''
-    const dir = home + '/.claude/backlogs/'
-    filePath = dir + projectKey(cwdNow) + '.json'
-    brokenBackup = ''
-    projectDir = cwdNow.replace(/\\/g, '/').replace(/\/+$/, '')
-    repoBoardUrl = ''
-    if (projectDir && (await $.fs.exists(projectDir + '/' + REPO_LINK))) {
-      let lt = ''
-      try { lt = await $.fs.read(projectDir + '/' + REPO_LINK) } catch { lt = '' }
-      repoBoardUrl = repoLinkUrl(lt)
-    }
-    cursorLinked = false
-    if (projectDir && (await $.fs.exists(projectDir + '/.cursor/mcp.json'))) {
-      let ct = ''
-      try { ct = await $.fs.read(projectDir + '/.cursor/mcp.json') } catch { ct = '' }
-      cursorLinked = /Backlog-Board|backlog-mcp/.test(ct)
-    }
-    let root = ''
-    try { root = $.plugin.root } catch { root = '' }
-    boardTemplate = (root + '/board.html').replace(/\\/g, '/')
-    templateHash = ''
-    if (await $.fs.exists(boardTemplate)) {
-      let tt = ''
-      try { tt = await $.fs.read(boardTemplate) } catch { tt = '' }
-      if (tt) templateHash = fingerprint(tt)
-    }
-    // Where open tasks may already be written down: Claude's auto-memory for
-    // this project, and the usual notes files in the project itself.
-    importSources = []
-    if (projectDir) {
-      const memDir = home + '/.claude/projects/' + memoryKey(cwdNow) + '/memory'
-      if (await $.fs.exists(memDir)) {
-        let entries: { name: string; kind: string }[] = []
-        try { entries = await $.fs.list(memDir) } catch { entries = [] }
-        entries
-          .filter(en => en.kind === 'file' && /\.md$/i.test(en.name))
-          .map(en => en.name).sort()
-          .slice(0, 20)
-          .forEach(n => importSources.push(memDir + '/' + n))
-      }
-      for (const n of NOTE_FILES) {
-        if (await $.fs.exists(projectDir + '/' + n)) importSources.push(projectDir + '/' + n)
-      }
-    }
-
-    // Earlier versions named the file by the path alone, so two different
-    // paths could share one file. Move a file from that old name over once —
-    // but only if it is this project's (or carries no cwd yet) — and leave a
-    // marker behind (boardUrl null, so the project switcher skips it).
-    const legacyPath = dir + legacyKey(cwdNow) + '.json'
-    if (!(await $.fs.exists(filePath)) && (await $.fs.exists(legacyPath))) {
-      let legacyTxt = ''
-      try { legacyTxt = await $.fs.read(legacyPath) } catch { legacyTxt = '' }
-      const legacy = parseFile(legacyTxt)
-      const raw = legacy ? (safeParse(legacyTxt) as Record<string, unknown>) : null
-      const moved = raw !== null && typeof raw.movedTo === 'string'
-      if (legacy && !moved && (legacy.cwd === '' || legacy.cwd === cwdNow)) {
-        legacy.cwd = cwdNow
-        await $.fs.write(filePath, JSON.stringify(legacy, null, 2))
-        await $.fs.write(legacyPath, JSON.stringify({
-          movedTo: projectKey(cwdNow) + '.json', boardUrl: null, cwd: cwdNow,
-        }, null, 2))
-      }
-    }
-
-    // Create this project's backlog file the first time we see it, and keep the
-    // project's cwd recorded so the cross-project switcher can show a friendly
-    // name for it. A file that exists but will not parse is left untouched.
-    const loaded = await loadBacklog($, filePath)
-    const parsed = loaded.file
-    if (!parsed) {
-      brokenBackup = filePath + '.corrupt-' + stamp()
-      await $.fs.write(brokenBackup, loaded.txt)
-    } else if (!loaded.exists || parsed.cwd !== cwdNow) {
-      parsed.cwd = cwdNow
-      await saveBacklog($, filePath, parsed, loaded.txt)
-    }
-    // Remind, under the prompt, about captures that never reached the board.
-    $.ui.status(statusLine(parsed, brokenBackup))
+    homeDir = (up ?? hm ?? '').replace(/\\/g, '/')
+    await enterProject($, e.cwd ?? '')
 
     await $.tool.register({
       name: 'add',
@@ -176,16 +100,19 @@ export const register: Register = on => {
     return next(e)
   })
 
+
   // Tell the model how to capture and how to open the board, and where the
   // private file lives — added as a context block on the first message.
   on('prompt.context', async ($, e, next) => {
     const result = await next(e)
+    await syncProject($)
     let file: BacklogFile | null = null
     if (filePath && (await $.fs.exists(filePath))) {
       let t = ''
       try { t = await $.fs.read(filePath) } catch { t = '' }
       file = parseFile(t)
     }
+    if (!filePath) return result   // no project folder yet: nothing to say
     const mirrorPath = filePath.replace(/\.json$/, '')
     const block = {
       name: 'backlog',
@@ -385,6 +312,8 @@ export const register: Register = on => {
   // string (the model reads it) — never an object.
   on('tool.call', { tool: 'mcp__backlog__add' }, async ($, e) => {
     const input = e as unknown as Record<string, unknown>
+    await syncProject($)
+    if (!filePath) return { result: 'Not added: this session has no project folder yet, so there is no backlog to add to.' }
 
     const loaded = await loadBacklog($, filePath)
     const parsed = loaded.file
@@ -415,6 +344,8 @@ export const register: Register = on => {
   // /backlog help
   on('command.run', { command: 'backlog' }, async ($, e) => {
     const cmd = parseBacklogArgs(e.args ?? '')
+    await syncProject($)
+    if (!filePath) return { text: 'This session has no project folder yet, so there is no backlog here.' }
 
     const loaded = await loadBacklog($, filePath)
     const file = loaded.file
@@ -577,6 +508,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if ((e as unknown as { agentId?: string }).agentId) return result
+    await syncProject($)
     if (!filePath || !(await $.fs.exists(filePath))) return result
     let txt = ''
     try { txt = await $.fs.read(filePath) } catch { return result }
@@ -585,6 +517,108 @@ export const register: Register = on => {
     $.ui.status(file ? statusLine(file, '') : statusLine(null, brokenBackup || filePath))
     return result
   })
+}
+
+// Everything that depends on which project this is. Called at session start
+// and again whenever the session turns out to be somewhere else: the desktop
+// app starts a session in a spare placeholder folder (~/.claude/spares/…) and
+// moves it to the project only when the person starts it, so the start-time
+// cwd can be a stand-in that must own no backlog file and no board.
+async function enterProject($: EngineInterface, cwdNow: string): Promise<void> {
+  currentCwd = cwdNow
+  if (!cwdNow || isSparePath(cwdNow)) {
+    filePath = ''; projectDir = ''; repoBoardUrl = ''; cursorLinked = false; importSources = []; brokenBackup = ''
+    $.ui.status(undefined)
+    return
+  }
+  const home = homeDir
+  const dir = home + '/.claude/backlogs/'
+  filePath = dir + projectKey(cwdNow) + '.json'
+  brokenBackup = ''
+  projectDir = cwdNow.replace(/\\/g, '/').replace(/\/+$/, '')
+  repoBoardUrl = ''
+  if (projectDir && (await $.fs.exists(projectDir + '/' + REPO_LINK))) {
+    let lt = ''
+    try { lt = await $.fs.read(projectDir + '/' + REPO_LINK) } catch { lt = '' }
+    repoBoardUrl = repoLinkUrl(lt)
+  }
+  cursorLinked = false
+  if (projectDir && (await $.fs.exists(projectDir + '/.cursor/mcp.json'))) {
+    let ct = ''
+    try { ct = await $.fs.read(projectDir + '/.cursor/mcp.json') } catch { ct = '' }
+    cursorLinked = /Backlog-Board|backlog-mcp/.test(ct)
+  }
+  let root = ''
+  try { root = $.plugin.root } catch { root = '' }
+  boardTemplate = (root + '/board.html').replace(/\\/g, '/')
+  templateHash = ''
+  if (await $.fs.exists(boardTemplate)) {
+    let tt = ''
+    try { tt = await $.fs.read(boardTemplate) } catch { tt = '' }
+    if (tt) templateHash = fingerprint(tt)
+  }
+  // Where open tasks may already be written down: Claude's auto-memory for
+  // this project, and the usual notes files in the project itself.
+  importSources = []
+  if (projectDir) {
+    const memDir = home + '/.claude/projects/' + memoryKey(cwdNow) + '/memory'
+    if (await $.fs.exists(memDir)) {
+      let entries: { name: string; kind: string }[] = []
+      try { entries = await $.fs.list(memDir) } catch { entries = [] }
+      entries
+        .filter(en => en.kind === 'file' && /\.md$/i.test(en.name))
+        .map(en => en.name).sort()
+        .slice(0, 20)
+        .forEach(n => importSources.push(memDir + '/' + n))
+    }
+    for (const n of NOTE_FILES) {
+      if (await $.fs.exists(projectDir + '/' + n)) importSources.push(projectDir + '/' + n)
+    }
+  }
+
+  // Earlier versions named the file by the path alone, so two different
+  // paths could share one file. Move a file from that old name over once —
+  // but only if it is this project's (or carries no cwd yet) — and leave a
+  // marker behind (boardUrl null, so the project switcher skips it).
+  const legacyPath = dir + legacyKey(cwdNow) + '.json'
+  if (!(await $.fs.exists(filePath)) && (await $.fs.exists(legacyPath))) {
+    let legacyTxt = ''
+    try { legacyTxt = await $.fs.read(legacyPath) } catch { legacyTxt = '' }
+    const legacy = parseFile(legacyTxt)
+    const raw = legacy ? (safeParse(legacyTxt) as Record<string, unknown>) : null
+    const moved = raw !== null && typeof raw.movedTo === 'string'
+    if (legacy && !moved && (legacy.cwd === '' || legacy.cwd === cwdNow)) {
+      legacy.cwd = cwdNow
+      await $.fs.write(filePath, JSON.stringify(legacy, null, 2))
+      await $.fs.write(legacyPath, JSON.stringify({
+        movedTo: projectKey(cwdNow) + '.json', boardUrl: null, cwd: cwdNow,
+      }, null, 2))
+    }
+  }
+
+  // Create this project's backlog file the first time we see it, and keep the
+  // project's cwd recorded so the cross-project switcher can show a friendly
+  // name for it. A file that exists but will not parse is left untouched.
+  const loaded = await loadBacklog($, filePath)
+  const parsed = loaded.file
+  if (!parsed) {
+    brokenBackup = filePath + '.corrupt-' + stamp()
+    await $.fs.write(brokenBackup, loaded.txt)
+  } else if (!loaded.exists || parsed.cwd !== cwdNow) {
+    parsed.cwd = cwdNow
+    await saveBacklog($, filePath, parsed, loaded.txt)
+  }
+  // Remind, under the prompt, about captures that never reached the board.
+  $.ui.status(statusLine(parsed, brokenBackup))
+}
+
+// The session's project root as the engine knows it now; re-enter the
+// project when it moved since the last look.
+async function syncProject($: EngineInterface): Promise<void> {
+  let root = ''
+  try { root = await $.session.root() } catch { root = '' }
+  if (!root || samePath(root, currentCwd)) return
+  await enterProject($, root)
 }
 
 // ---- pure helpers (no $) ----
@@ -707,6 +741,15 @@ function statusLine(file: BacklogFile | null, backup: string, repo: string = rep
 // this plugin ships. A shared board is its owner's to update, so it is skipped.
 function boardStale(file: BacklogFile): boolean {
   return !!templateHash && !!file.boardUrl && !file.useBoardUrl && file.boardTemplate !== templateHash
+}
+
+// A placeholder folder the desktop app starts spare sessions in; never a project.
+function isSparePath(p: string): boolean {
+  return /[\\/]\.claude[\\/]spares[\\/]/i.test(p)
+}
+function samePath(a: string, b: string): boolean {
+  const n = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return n(a) === n(b)
 }
 
 // Notes files a project may keep open tasks in (relative to the project).

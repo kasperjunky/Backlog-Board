@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop-app sessions no longer key the backlog to a placeholder folder.** The app
+  starts a session in a spare folder (`~/.claude/spares/…`) and moves it to the project
+  when you start it; the mod read the folder once, at session start, so it owned a
+  backlog file for the placeholder, saw no board there and let Claude create a stray
+  one. It now treats a spare folder as "no project yet" and follows the session to its
+  real folder at the next hook (`$.session.root()`), including after a `/cd`.
+
 ## [0.11.1] - 2026-11-14
 
 ### Added
