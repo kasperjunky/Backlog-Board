@@ -207,6 +207,22 @@
     var added = $$(".card").filter(function (c) { return $(".name", c).textContent === "Typed in"; })[0];
     if (added) { $(".iconbtn.danger", added).click(); await tick(); await new Promise(function (r) { setTimeout(r, 400); }); }
   });
+  await test("? Help on the title row opens a guide; Esc closes it and gives focus back", async function () {
+    var b = $("#helpBtn"); ok(b && b.closest(".titlerow"), "help button sits on the title row");
+    b.click(); await tick();
+    var ov = $(".help-overlay"); ok(ov, "panel open"); eq(ov.getAttribute("role"), "dialog", "a dialog");
+    ok(/Work on this/.test(ov.textContent) && /save to backlog/.test(ov.textContent) && /Undo/.test(ov.textContent), "covers cards, chat and tidying");
+    eq(document.activeElement, $(".help-overlay .exp-btn"), "Close is focused");
+    key(document.activeElement, "n"); await tick();
+    ok($('[data-add="urgent"]').parentElement.hidden && $('[data-add="important"]').parentElement.hidden, "N does nothing while help is open");
+    key(document.activeElement, "Escape"); await tick();
+    ok(!$(".help-overlay"), "Esc closes it"); eq(document.activeElement, b, "focus back on ? Help");
+    // still there with the controls collapsed
+    $("#controlsToggle").click(); await tick();
+    ok($("#helpBtn").offsetParent !== null, "visible when the controls are hidden");
+    $("#controlsToggle").click(); await tick();
+    ok(!$(".wrap").classList.contains("compact"), "controls restored");
+  });
   await test("controls collapse, remember the choice, and flag active filters", async function () {
     var t = $("#controlsToggle");
     t.click(); await tick();

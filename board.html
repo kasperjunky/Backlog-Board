@@ -164,6 +164,19 @@
   .mintoggle:hover { color: var(--fg); border-color: var(--accent); }
   .mintoggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .mintoggle .mt-note { color: var(--accent); }
+  .titlerow .helpbtn { font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line-strong)); border-radius: 999px; padding: 3px 11px; cursor: pointer; display: inline-flex; align-items: center; }
+  .titlerow .helpbtn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .titlerow .helpbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .help-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 55; }
+  .help-card { background: var(--surface); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 12px; width: min(720px, 100%); max-height: min(86vh, 900px); display: flex; flex-direction: column; box-shadow: var(--shadow); overflow: hidden; }
+  .help-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .help-head h2 { margin: 0; font-family: var(--font-display); font-optical-sizing: auto; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .help-body { overflow-y: auto; padding: 4px 18px 18px; font-size: 13.5px; line-height: 1.5; }
+  .help-body h3 { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+  .help-body ul { margin: 0; padding-left: 18px; }
+  .help-body li { margin: 4px 0; }
+  .help-body b { font-weight: 650; }
+  .help-body code, .help-body kbd { font-family: var(--font-body); font-weight: 650; font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
   /* Collapsed: only the title row (and any pick/banner) stays above the lanes. */
   .wrap.compact .title p, .wrap.compact .legend, .wrap.compact #toolbar, .wrap.compact #stats { display: none; }
   .wrap.compact header.top { margin-bottom: 14px; }
@@ -505,6 +518,7 @@
       <div class="titlerow">
         <h1>Backlog Board</h1>
         <button type="button" class="mintoggle" id="controlsToggle" aria-expanded="true" aria-controls="toolbar stats" title="Hide the intro, toolbar and stats">Hide controls <span class="mt-caret" aria-hidden="true">▴</span></button>
+        <button type="button" class="helpbtn" id="helpBtn" aria-haspopup="dialog" title="How to work with the board">? Help</button>
       </div>
       <p>Drag to reorder or move between lanes. Click a name, note, value, effort or status to edit — the <b>▾</b> collapses a card and the swatch recolors it. Hit <b>▶ Work on this</b> to hand a card to Claude.</p>
     </div>
@@ -1841,7 +1855,7 @@
   }
   document.addEventListener("keydown", function (e) {
     if ((e.key !== "n" && e.key !== "N") || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
-    if (isTypingIn(e.target) || document.querySelector(".lb-overlay, .exp-overlay")) return;
+    if (isTypingIn(e.target) || document.querySelector(".lb-overlay, .exp-overlay, .help-overlay")) return;
     var sec = e.target.closest && e.target.closest("[data-col]");
     var col = sec && COLS.indexOf(sec.dataset.col) >= 0 ? sec.dataset.col : lastLane;
     e.preventDefault();
@@ -1862,6 +1876,49 @@
       }, 120);
     });
   });
+
+  // ---- help: how to work with the board (static, author-written text) ----
+  var HELP_HTML =
+    "<h3>Cards</h3><ul>" +
+    "<li><b>+</b> by a lane name (or press <kbd>N</kbd>) adds a card. Click the name or the note to edit them.</li>" +
+    "<li>The dots are <b>value</b> 1–5, the chip is <b>effort</b> S / M / L / XL, and the status flips between <b>To do</b> and <b>In progress</b>. ★ marks a quick win.</li>" +
+    "<li><b>▾</b> collapses a card, the swatch recolors it, <b>📅</b> sets a due date, <b>+ Subtask</b> starts a checklist, <b>💬</b> opens comments, <b>🔗</b> attaches a PR, branch or issue link, <b>🖼</b> adds screenshots or mockups (paste or drop them too).</li>" +
+    "</ul><h3>Move and prioritize</h3><ul>" +
+    "<li>Drag cards within a lane or into another: <b>Urgent</b>, <b>Important</b>, <b>Nice to have</b>. Without a mouse, use <b>⇅</b> or <kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd>.</li>" +
+    "<li><b>Sort: Quick wins ★</b> ranks cards by value against effort. Search and the filters narrow the view; moving pauses while they are on.</li>" +
+    "</ul><h3>Hand work to Claude</h3><ul>" +
+    "<li>Click <b>▶ Work on this</b>, then say in chat <code>start my backlog pick</code> — or just say <code>do item #23</code> with a card's number.</li>" +
+    "<li>Claude reads the card's note, subtasks, comments and images before starting, and closes the card with a ✓ line saying what was done.</li>" +
+    "</ul><h3>In chat</h3><ul>" +
+    "<li><code>save to backlog: …</code> or <code>later</code> captures a task onto this board. <code>show backlog</code> opens it. <code>import my backlog</code> pulls open tasks out of your notes.</li>" +
+    "<li><code>/backlog done #X</code> closes a card, <code>/backlog note #X …</code> adds to its note, <code>/backlog issue #X</code> turns it into a GitHub Issue (you confirm the draft first), <code>/backlog add …</code> captures without a word to Claude.</li>" +
+    "</ul><h3>Finish and tidy</h3><ul>" +
+    "<li><b>✓</b> moves a card to the Archive; <b>✕</b> deletes it, with <b>Undo</b> for 10 seconds. The Archive offers to clear cards finished more than 30 days ago.</li>" +
+    "<li><b>⬇ Export .md</b> saves a Markdown snapshot. <b>Projects ▾</b> jumps to your other boards; <b>🎨 Theme</b> recolors this one.</li>" +
+    "</ul><h3>Team boards</h3><ul>" +
+    "<li>Share the board from its Share menu. Teammates can add and move cards, assign them, comment, and pick their own card for Claude; <b>Mine</b> shows the cards assigned to you.</li>" +
+    "<li>Only the board's owner and editors change the theme and the project list.</li>" +
+    "</ul>";
+  function openHelp() {
+    if (document.querySelector(".help-overlay")) return;
+    var ov = document.createElement("div"); ov.className = "help-overlay"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "How to work with the board");
+    var card = document.createElement("div"); card.className = "help-card";
+    var head = document.createElement("div"); head.className = "help-head";
+    var h = document.createElement("h2"); h.textContent = "How to work with the board";
+    var close = document.createElement("button"); close.type = "button"; close.className = "exp-btn"; close.textContent = "Close"; close.setAttribute("aria-label", "Close help");
+    head.appendChild(h); head.appendChild(close);
+    var body = document.createElement("div"); body.className = "help-body"; body.innerHTML = HELP_HTML;
+    card.appendChild(head); card.appendChild(body); ov.appendChild(card);
+    var returnTo = document.activeElement;
+    function done() { ov.remove(); document.removeEventListener("keydown", onKey, true); if (returnTo && returnTo.focus) returnTo.focus(); }
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(); } }
+    close.addEventListener("click", done);
+    ov.addEventListener("click", function (e) { if (e.target === ov) done(); });
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(ov); close.focus();
+  }
+  var helpBtn = document.getElementById("helpBtn");
+  if (helpBtn) helpBtn.addEventListener("click", openHelp);
 
   // ---- export to markdown ----
   function boardToMarkdown() {

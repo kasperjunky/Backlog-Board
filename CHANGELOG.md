@@ -6,6 +6,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **? Help on the board.** A button next to the board's name (visible even with the
+  controls hidden) opens an in-page guide: cards, moving and prioritizing, handing work
+  to Claude, what to say in chat, finishing and tidying, team boards. Esc closes it.
+
 ## [0.11.0] - 2026-11-14
 
 ### Added

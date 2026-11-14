@@ -101,6 +101,9 @@ its first line what they show.
 
 ### A tour of the board
 
+**? Help**, next to the board's name, opens this tour on the board itself, so anyone the
+board is shared with can read it without installing anything.
+
 **Lanes.** Cards sit in three lanes — **Urgent**, **Important**, **Nice to have** — plus an
 **Archive** at the bottom for finished cards. Click the **+** next to a lane's name to add a
 card there (Enter adds it and keeps the box open for another; Esc closes it). From the
