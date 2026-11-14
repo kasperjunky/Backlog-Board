@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-14
+
 ### Added
 - **? Help on the board.** A button next to the board's name (visible even with the
   controls hidden) opens an in-page guide: cards, moving and prioritizing, handing work
@@ -143,6 +145,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   board text is treated as data (never instructions), inputs are validated,
   and backlog data stays private to `~/.claude/backlogs/`.
 
+[0.11.1]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.1
 [0.11.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.0
 [0.10.1]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.1
 [0.10.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.0
