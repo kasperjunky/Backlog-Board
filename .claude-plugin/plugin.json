@@ -1,6 +1,6 @@
 {
   "name": "backlog",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "A private, per-project backlog: capture tasks by talking, organize them on a drag-and-drop Kanban board.",
   "author": { "name": "kasperjunky" },
   "license": "MIT"
