@@ -295,7 +295,7 @@ them out; say *"show backlog"* there).
 newer installed (no Claude Code needed for this part):
 
 ```
-npx -y github:kasperjunky/Backlog-Board#backlog--v0.11.1 setup
+npx -y github:kasperjunky/Backlog-Board#backlog--v0.11.2 setup
 ```
 
 That writes two files into the project's `.cursor/` folder (keeping anything already there):
@@ -309,7 +309,7 @@ That writes two files into the project's `.cursor/` folder (keeping anything alr
     "mcpServers": {
       "backlog": {
         "command": "npx",
-        "args": ["-y", "github:kasperjunky/Backlog-Board#backlog--v0.11.1", "--project", "${workspaceFolder}"]
+        "args": ["-y", "github:kasperjunky/Backlog-Board#backlog--v0.11.2", "--project", "${workspaceFolder}"]
       }
     }
   }

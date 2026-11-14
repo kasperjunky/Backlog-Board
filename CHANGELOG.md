@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-14
+
 ### Fixed
 - **Desktop-app sessions no longer key the backlog to a placeholder folder.** The app
   starts a session in a spare folder (`~/.claude/spares/…`) and moves it to the project
@@ -153,6 +155,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   board text is treated as data (never instructions), inputs are validated,
   and backlog data stays private to `~/.claude/backlogs/`.
 
+[0.11.2]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.2
 [0.11.1]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.1
 [0.11.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.0
 [0.10.1]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.1
