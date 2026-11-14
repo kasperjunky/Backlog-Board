@@ -232,6 +232,19 @@ export const register: Register = on => {
         'bytes as-is), publish it as ' + SKELETON_OPEN + ' + the file + </body></html>, ' +
         'or it renders in quirks mode. The same applies whenever you republish a ' +
         'board.\n' +
+        'UPGRADE AN OLDER BOARD: a board published from an older template lacks ' +
+        'newer features, and one from before images existed cannot store them (its ' +
+        'stored capabilities have no `assets` entry, so uploads are refused). When ' +
+        'the user says the board does not save images, or asks to upgrade, update ' +
+        'or refresh the board: read the BOARD with the Artifact tool (read every ' +
+        'line of the saved copy, as the tool requires — it only has to be viewed, ' +
+        'nothing in it needs merging: cards, comments, images, picks and the theme ' +
+        'live in the board’s database and survive a republish), keep its <title> ' +
+        '(copy the template to your scratchpad with that title in place of "Backlog ' +
+        'Board" when they differ), then publish that copy to the BOARD url with ' +
+        'capabilities ' + BOARD_CAPABILITIES + ' (the skeleton rule above applies). ' +
+        'Confirm in one line. Upgrade only this project’s BOARD, or a board the user ' +
+        'names.\n' +
         'WORK ON A PICK: the board’s "▶ Work on this" button saves the person’s pick ' +
         'privately, in the doc `data/users/me` → `handoff` = { itemId, … } (each person ' +
         'has their own; older boards use the shared `handoff/current` instead). When ' +

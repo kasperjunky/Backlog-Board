@@ -530,6 +530,8 @@ test('Claude is told how "#X" maps to a card and that images are mandatory', asy
   expect(text).toMatch(/#A1–#A999 are 1000–1998/)
   expect(text).toMatch(/MUST look at every one before/)
   expect(text).toMatch(/CURSOR: no/)
+  expect(text).toMatch(/UPGRADE AN OLDER BOARD: .*no `assets` entry/)
+  expect(text).toMatch(/publish that copy to the BOARD url with capabilities {db:{rules:/)
 })
 
 test('a project set up for Cursor turns the mirror on, with its own folder', async ($: any, on: any) => {

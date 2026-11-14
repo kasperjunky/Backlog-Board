@@ -6,6 +6,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Older boards can be upgraded in place.** A board published before images existed
+  (6 Nov or earlier) has no `assets` capability, so uploads to it were silently
+  refused. Say *"upgrade my board"* (or report that images aren't saved) and Claude
+  republishes that project's board from the current template with the full
+  capability set, keeping its name; cards, comments and the theme survive.
+
 ## [0.10.0] - 2026-11-13
 
 ### Added
