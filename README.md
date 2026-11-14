@@ -260,7 +260,13 @@ In the desktop app (where `/plugin` doesn't run): click **+** next to the prompt
 Then **start a new Claude Code session** in any project — the plugin loads when a session
 starts. Say *"save to backlog: try the backlog board"*, then *"show backlog"*.
 
-To update later, run `claude plugin update backlog` from a shell.
+To update later, run these two from a shell, then start a new session (plugin updates are
+never automatic — the installed copy stays at its version until you do):
+
+```
+claude plugin marketplace update backlog-board
+claude plugin update backlog@backlog-board
+```
 
 > If you install from a **private copy** of this repository (a fork, or before it was made
 > public), only people it's shared with on GitHub can install it, and they also need a
