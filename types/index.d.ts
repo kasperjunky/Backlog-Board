@@ -27,4 +27,7 @@ export type BacklogFile = {
   // a shared (team) board this project uses instead of its own (/backlog use)
   useBoardUrl: string | null
   cwd: string
+  // fingerprint of the board page last published to boardUrl (null: unknown);
+  // when the plugin ships a different page, Claude updates the board
+  boardTemplate: string | null
 }

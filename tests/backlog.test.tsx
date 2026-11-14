@@ -4,6 +4,7 @@ import { expect, mock, test } from 'claude-code/testing'
 // system, plus the registrations session.start makes.
 // The status line the mod last set ($.ui.status), per wired test.
 const statusOf = new WeakMap<object, { text: string | undefined; calls: number }>()
+const probedOf = new WeakMap<object, string[]>()
 
 function wire(on: any) {
   const files: Record<string, string> = {}
@@ -13,7 +14,9 @@ function wire(on: any) {
   on('turn.complete', () => ({ text: 'the answer' }))
   on('prompt.context', () => ({ blocks: [] }))
   mock.env(on, { USERPROFILE: 'C:/Users/test', HOME: '/home/test' })
-  on('fs.exists', (_: any, e: any) => ({ value: e.path in files }))
+  const probed: string[] = []
+  probedOf.set(files, probed)
+  on('fs.exists', (_: any, e: any) => { probed.push(e.path); return { value: e.path in files } })
   on('fs.read', (_: any, e: any) => ({ value: e.path in files ? files[e.path] : '' }))
   on('fs.write', (_: any, e: any) => { files[e.path] = e.text; return { value: undefined } })
   on('tool.register', () => ({ value: { tool: 'mcp__backlog__add' } }))
@@ -22,6 +25,13 @@ function wire(on: any) {
   return files
 }
 
+// The board page the plugin ships, at the path the mod probed for it (the
+// engine spells paths its own way, so learn it rather than guess).
+function templatePath(files: Record<string, string>): string {
+  const k = (probedOf.get(files) as string[]).find(p => /board\.html$/.test(p))
+  if (!k) throw new Error('the mod never looked for board.html')
+  return k
+}
 // The one backlog file the mod created, whatever path it chose.
 function backlogPath(files: Record<string, string>): string {
   const k = Object.keys(files).find(p => p.includes('backlogs'))
@@ -392,6 +402,54 @@ test('/backlog issue #X asks Claude to draft a GitHub Issue from that card and c
   const withText = await $.command.run({ command: 'backlog', args: 'promote #A4 Needs a design review first' })
   expect((withText as any).text).toMatch(/from #A4 /)
   expect((withText as any).context[0]).toMatch(/whose `num` is 1003 .*paragraph from the user: "Needs a design review first"/)
+})
+
+test('a board published from an older page is flagged until its stamp matches the shipped page', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj40', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files), tpl = templatePath(files)
+  files[tpl] = '<title>Backlog Board</title><p>page v1</p>'
+  // no board yet: nothing to update
+  await $.session.start({ cwd: '/proj40', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBeUndefined()
+  expect(await contextText($, on)).not.toMatch(/BOARD UPDATE DUE/)
+  // an own board with no stamp (published before stamps existed)
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/Board40' }))
+  await $.session.start({ cwd: '/proj40', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toMatch(/older than this plugin — Claude updates it at your next message/)
+  const ctx = await contextText($, on)
+  expect(ctx).toMatch(/BOARD UPDATE DUE: .*its stamp is missing; this plugin ships [0-9a-f]{8}/)
+  expect(ctx).toMatch(/do UPGRADE AN OLDER BOARD on it, then set boardTemplate = "[0-9a-f]{8}"/)
+  expect(ctx).toMatch(/boardUrl, useBoardUrl, boardTemplate \}/)
+  expect(ctx).toMatch(/save the new artifact URL into boardUrl and boardTemplate = "[0-9a-f]{8}"/)
+  const hash = (ctx.match(/this plugin ships ([0-9a-f]{8})/) as RegExpMatchArray)[1]
+  // the stamp Claude writes after the republish silences it
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardTemplate: hash }))
+  await $.session.start({ cwd: '/proj40', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBeUndefined()
+  expect(await contextText($, on)).not.toMatch(/BOARD UPDATE DUE/)
+  // a new page ships: flagged again, with the old stamp quoted
+  files[tpl] = '<title>Backlog Board</title><p>page v2</p>'
+  await $.session.start({ cwd: '/proj40', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toMatch(/older than this plugin/)
+  expect(await contextText($, on)).toMatch(new RegExp('its stamp is "' + hash + '"; this plugin ships (?!' + hash + ')[0-9a-f]{8}'))
+})
+
+test('a shared board, or a plugin without its page, is never flagged for update', async ($: any, on: any) => {
+  const files = wire(on)
+  await $.session.start({ cwd: '/proj41', surface: 'desktop', isInteractive: true })
+  const path = backlogPath(files), tpl = templatePath(files)
+  files[tpl] = '<p>page</p>'
+  files[path] = JSON.stringify(Object.assign(readFile(files), { boardUrl: 'https://claude.ai/artifact/Own41', useBoardUrl: 'https://claude.ai/artifact/Team41' }))
+  await $.session.start({ cwd: '/proj41', surface: 'desktop', isInteractive: true })
+  expect(statusText(files) ?? '').not.toMatch(/older than this plugin/)
+  expect(await contextText($, on)).not.toMatch(/BOARD UPDATE DUE/)
+  // the shipped page cannot be read: no fingerprint, so no claim either way
+  delete files[tpl]
+  files[path] = JSON.stringify(Object.assign(readFile(files), { useBoardUrl: null }))
+  await $.session.start({ cwd: '/proj41', surface: 'desktop', isInteractive: true })
+  expect(statusText(files)).toBeUndefined()
+  expect(await contextText($, on)).not.toMatch(/BOARD UPDATE DUE/)
 })
 
 // ---- team boards: /backlog team, /backlog use, the repo link file ----

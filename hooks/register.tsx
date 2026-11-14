@@ -10,6 +10,7 @@ import type { BacklogFile, Effort, InboxItem, Priority } from '../types'
 // and write is inlined in the hook that needs it; the helpers below are pure.
 let filePath = ''
 let boardTemplate = ''
+let templateHash = ''   // fingerprint of the board page this plugin ships ('' when unreadable)
 // Set when the backlog file exists but cannot be parsed. While set, nothing
 // writes to the file (so a damaged file is never replaced by an empty one);
 // the raw text is copied to `brokenBackup` for the user to repair.
@@ -82,6 +83,12 @@ export const register: Register = on => {
     let root = ''
     try { root = $.plugin.root } catch { root = '' }
     boardTemplate = (root + '/board.html').replace(/\\/g, '/')
+    templateHash = ''
+    if (await $.fs.exists(boardTemplate)) {
+      let tt = ''
+      try { tt = await $.fs.read(boardTemplate) } catch { tt = '' }
+      if (tt) templateHash = fingerprint(tt)
+    }
 
     // Earlier versions named the file by the path alone, so two different
     // paths could share one file. Move a file from that old name over once —
@@ -167,6 +174,15 @@ export const register: Register = on => {
         'A per-project Kanban backlog board is active for this project. Its private ' +
         'data file (owned by the backlog mod) is at: ' + filePath + '\n' +
         boardLine(file, repoBoardUrl) + '\n' +
+        (file && boardStale(file)
+          ? 'BOARD UPDATE DUE: the BOARD was published from an older copy of the board page ' +
+            '(its stamp is ' + (file.boardTemplate ? JSON.stringify(file.boardTemplate) : 'missing') + '; this plugin ships ' + templateHash + '). ' +
+            'At your next turn, before any DRAIN, SHOW / OPEN or pick, do UPGRADE AN OLDER BOARD on it, ' +
+            'then set boardTemplate = ' + JSON.stringify(templateHash) + ' in the data file (read it, change that one field, write it back) ' +
+            'and tell the user in one line that the board was updated. If the publish is refused (permission denied, or the user is not an ' +
+            'Editor of the board), tell the user once, still write that boardTemplate value so this is not repeated, and go on; ' +
+            '"upgrade my board" tries again.\n'
+          : '') +
         'CURSOR: ' + (cursorLinked ? 'yes — this project is set up for Cursor’s AI, so keep the MIRROR below current.' : 'no (keep the MIRROR only if the user asks to sync the backlog for Cursor).') + '\n' +
         (brokenBackup
           ? 'WARNING: that file could not be parsed, so the backlog is paused: ' +
@@ -201,7 +217,7 @@ export const register: Register = on => {
         'capture). Do not capture the task currently being worked on, and do not ' +
         'mention the backlog unless the user brings it up or an item was added.\n' +
         'DRAIN (moving captures onto the BOARD): read the data file — it is { nextId, ' +
-        'known, knownNames, inbox, boardUrl, useBoardUrl }. Item ids on the board come ' +
+        'known, knownNames, inbox, boardUrl, useBoardUrl, boardTemplate }. Item ids on the board come ' +
         'from the counter doc `counters/items` = { next } in the board’s artifact ' +
         'database (shared by everyone who uses the board, and by the board itself for ' +
         'cards added there): read it; if it does not exist, start at 1 + the highest ' +
@@ -226,7 +242,7 @@ export const register: Register = on => {
         'user’s own board from the template that ships with this plugin: publish the ' +
         'HTML file at ' + boardTemplate + ' as a new Artifact with capabilities ' +
         BOARD_CAPABILITIES + ' (that file IS the board UI — publish it as-is, do not ' +
-        'rewrite it), save the new artifact URL into boardUrl, then drain as above. ' +
+        'rewrite it), save the new artifact URL into boardUrl' + (templateHash ? ' and boardTemplate = ' + JSON.stringify(templateHash) : '') + ', then drain as above. ' +
         'The file has no <!doctype>/<head>: if the publishing tool does not wrap pages ' +
         'in the standard artifact skeleton (e.g. a publish-files tool that serves ' +
         'bytes as-is), publish it as ' + SKELETON_OPEN + ' + the file + </body></html>, ' +
@@ -242,9 +258,11 @@ export const register: Register = on => {
         'live in the board’s database and survive a republish), keep its <title> ' +
         '(copy the template to your scratchpad with that title in place of "Backlog ' +
         'Board" when they differ), then publish that copy to the BOARD url with ' +
-        'capabilities ' + BOARD_CAPABILITIES + ' (the skeleton rule above applies). ' +
+        'capabilities ' + BOARD_CAPABILITIES + ' (the skeleton rule above applies)' +
+        (templateHash ? ', and when it is this project’s own board set boardTemplate = ' + JSON.stringify(templateHash) + ' in the data file' : '') + '. ' +
         'Confirm in one line. Upgrade only this project’s BOARD, or a board the user ' +
-        'names.\n' +
+        'names. Boards are per-project copies of the page: a plugin update never ' +
+        'changes a published board by itself, so this is how one catches up.\n' +
         'WORK ON A PICK: the board’s "▶ Work on this" button saves the person’s pick ' +
         'privately, in the doc `data/users/me` → `handoff` = { itemId, … } (each person ' +
         'has their own; older boards use the shared `handoff/current` instead). When ' +
@@ -624,7 +642,22 @@ function statusLine(file: BacklogFile | null, backup: string, repo: string = rep
       : items + ' captured — say "show backlog" to create your board')
   }
   if (repo && repo !== boardOf(file)) parts.push('This repo links a team backlog board — run /backlog use repo to join it')
+  if (boardStale(file)) parts.push('Your board is older than this plugin — Claude updates it at your next message')
   return parts.length ? parts.join(' · ') : undefined
+}
+
+// The user's own board was published from a different board page than the one
+// this plugin ships. A shared board is its owner's to update, so it is skipped.
+function boardStale(file: BacklogFile): boolean {
+  return !!templateHash && !!file.boardUrl && !file.useBoardUrl && file.boardTemplate !== templateHash
+}
+
+// FNV-1a over the page text (line endings normalized), as 8 hex digits.
+function fingerprint(s: string): string {
+  const t = s.replace(/\r\n/g, '\n')
+  let h = 0x811c9dc5
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0 }
+  return ('0000000' + h.toString(16)).slice(-8)
 }
 
 // The board this project uses: one chosen with /backlog use, else its own.
@@ -679,7 +712,7 @@ function brokenMessage(path: string, backup: string): string {
 
 
 function emptyFile(): BacklogFile {
-  return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null, useBoardUrl: null, cwd: '' }
+  return { nextId: 1, known: [], knownNames: [], inbox: [], boardUrl: null, useBoardUrl: null, cwd: '', boardTemplate: null }
 }
 
 function today(): string {
@@ -843,7 +876,8 @@ function normalizeFile(obj: unknown): BacklogFile {
   const boardUrl = typeof o.boardUrl === 'string' ? o.boardUrl : null
   const useBoardUrl = boardUrlOf(o.useBoardUrl) || null
   const cwd = typeof o.cwd === 'string' ? o.cwd : ''
-  return { nextId, known, knownNames, inbox, boardUrl, useBoardUrl, cwd }
+  const boardTemplate = typeof o.boardTemplate === 'string' && /^[0-9a-f]{8}$/.test(o.boardTemplate) ? o.boardTemplate : null
+  return { nextId, known, knownNames, inbox, boardUrl, useBoardUrl, cwd, boardTemplate }
 }
 
 function toItem(raw: unknown): InboxItem | null {

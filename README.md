@@ -63,7 +63,19 @@ Kanban board of everything you've saved for that project.
 | *"work on the dark mode item"* | Same, for a card you name instead of picking. |
 | *"do item #23"* / *"work on #A4"* | Same, for the card with that number on the board. |
 | *"sync projects"* / *"update the project switcher"* | Refreshes the **Projects ▾** list from all your project boards. |
-| *"upgrade my board"* (or *"the board doesn't save images"*) | Republishes this project's board from the current template, keeping its name. Cards, comments, images and the theme live in the board's database and survive. Boards created before images existed need this once before they can store them. |
+| *"upgrade my board"* | Republishes this project's board from the current page, keeping its name. Normally you never need it: see [Board updates](#board-updates). |
+
+### Board updates
+
+Each project's board is its own private Artifact, a published copy of the board page that
+ships with the plugin. Updating the plugin does not touch boards that already exist, so
+the plugin keeps a fingerprint of the page each board was published from. When an update
+ships a different page, a line under the prompt says *Your board is older than this
+plugin*, and Claude republishes that project's board at the start of your next message
+(one permission prompt for the publish), then carries on with what you asked. Cards,
+comments, images, picks and the theme live in the board's database and survive. A shared
+team board is updated once by its owner and everyone gets it. Boards made before
+images existed (6 Nov 2026 or earlier) get images this way too.
 
 **Images are part of the task.** Whenever Claude starts a card — picked, named or by number —
 it looks at every image attached to it (screenshots, mockups) before starting, and says in

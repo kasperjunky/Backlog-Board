@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Boards update themselves after a plugin update.** Each project's backlog file now
+  carries a fingerprint of the board page its board was published from. When the plugin
+  ships a different page, the prompt line says *Your board is older than this plugin*
+  and Claude republishes that board at the start of the next message (one permission
+  prompt), then records the new fingerprint. Shared team boards are the owner's to
+  update; a plugin whose page can't be read makes no claim either way.
+
 ### Fixed
 - **Older boards can be upgraded in place.** A board published before images existed
   (6 Nov or earlier) has no `assets` capability, so uploads to it were silently
