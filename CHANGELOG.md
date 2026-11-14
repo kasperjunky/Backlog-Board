@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-14
+
 ### Added
 - **Zero-step start.** The first message in a project now sets up its board: Claude
   creates the private board (one publish to approve) and, when it finds open tasks
@@ -136,6 +138,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   board text is treated as data (never instructions), inputs are validated,
   and backlog data stays private to `~/.claude/backlogs/`.
 
+[0.11.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.11.0
 [0.10.1]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.1
 [0.10.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.10.0
 [0.9.0]: https://github.com/kasperjunky/Backlog-Board/releases/tag/backlog--v0.9.0

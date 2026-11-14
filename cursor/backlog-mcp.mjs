@@ -18,7 +18,7 @@ import { homedir } from 'node:os'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-export const VERSION = '0.10.1'
+export const VERSION = '0.11.0'
 // What `setup` writes into .cursor/mcp.json: this exact release, never a
 // moving branch, so a teammate who opens the repo runs reviewed code and a
 // later push to main cannot change what their editor starts.
